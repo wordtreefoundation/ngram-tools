@@ -4,13 +4,12 @@
 #include <string.h>
 #include "tkvdb/tkvdb.h"
 
-const char *dbPath;
-tkvdb_tr *transaction;
+FILE *input_file;
 
-int with_db(const char *path, void (*action)(tkvdb_tr *))
+void with_db(const char *path, void (*action)(tkvdb_tr *))
 {
     tkvdb *db = tkvdb_open(path, NULL);
-    transaction = tkvdb_tr_create(db, NULL);
+    tkvdb_tr *transaction = tkvdb_tr_create(db, NULL);
 
     transaction->begin(transaction);
     (*action)(transaction);
@@ -38,11 +37,11 @@ FILE *file_open(const char *path)
     return fp;
 }
 
-void process_lines(FILE *openFile)
+void process_lines(tkvdb_tr *transaction)
 {
     char *line = NULL;
     size_t len = 0;
-    ssize_t read;
+    int read;
 
     tkvdb_datum key, value;
     TKVDB_RES result;
@@ -56,7 +55,7 @@ void process_lines(FILE *openFile)
         exit(EXIT_FAILURE);
     }
 
-    while ((read = getline(&line, &len, openFile)) != -1)
+    while ((read = getline(&line, &len, input_file)) != -1)
     {
         key.data = (void *)line;
         key.size = strlen(line);
@@ -89,12 +88,6 @@ void process_lines(FILE *openFile)
     }
 }
 
-void process_file(FILE *openFile)
-{
-    const char *path = dbPath;
-    with_database(path, process_lines);
-}
-
 int main(int argc, char const *argv[])
 {
     if (argc == 1)
@@ -107,7 +100,7 @@ int main(int argc, char const *argv[])
         file_open(text_file_path);
 
         const char *db_storage_path = argv[1];
-        with_db(db_storage_path, process_file);
+        with_db(db_storage_path, process_lines);
     }
 
     return 0;

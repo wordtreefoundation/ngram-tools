@@ -1,0 +1,3 @@
+[submodule "tkvdb"]
+	path = tkvdb
+	url = git@github.com:vmxdev/tkvdb.git

@@ -172,9 +172,9 @@ int main(int argc, char const *argv[])
 {
     if (argc == 1)
     {
-        printf("USAGE: stream-increment <db-file> [text-file]\n\n");
-        printf("  e.g. $ stream-increment baseline.tkvdb book.txt\n");
-        printf("    or $ cat book.txt | stream-increment baseline.tkvdb\n");
+        printf("USAGE: tally-ngrams <db-file> [text-file]\n\n");
+        printf("  e.g. $ ./tally-ngrams baseline.tkvdb book.txt\n");
+        printf("    or $ cat book.txt | ./tally-ngrams baseline.tkvdb\n");
     }
     else if (argc >= 2)
     {
@@ -182,11 +182,11 @@ int main(int argc, char const *argv[])
         if (argc == 3)
         {
             text_file_path = argv[2];
-            fprintf(stderr, "stream-increment: %s\n", text_file_path);
+            fprintf(stderr, "tally-ngrams: %s\n", text_file_path);
         }
         else
         {
-            fprintf(stderr, "stream-increment: STDIN\n");
+            fprintf(stderr, "tally-ngrams: STDIN\n");
         }
         file_open(text_file_path);
 

@@ -1,3 +1,8 @@
 #!/bin/bash
 
-cc -g -Wall -pedantic -Wextra -I./tkvdb stream-increment.c tkvdb/tkvdb.c -o stream-increment
+cc -g -Wall -pedantic -Wextra -I./tkvdb \
+    tkvdb/tkvdb.c \
+    ngrams.c \
+    readall.c \
+    stream-increment.c \
+    -o stream-increment

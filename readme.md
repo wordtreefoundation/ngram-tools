@@ -64,5 +64,5 @@ You can count up ngrams in a file and add them to an ongoing, persistent tally (
 ./tally-ngrams baseline.tkvdb <book.txt>
 ```
 
-Where `<book.txt>` is any text file (e.g. a book from archive.org).
+Where `<book.txt>` is any text file (e.g. a book from archive.org), and `baseline.tkvdb` is the name of a new [tkvdb](https://github.com/vmxdev/tkvdb) file. You can use any name you want for the database file if it's a new database, and the file will be created for you.
 

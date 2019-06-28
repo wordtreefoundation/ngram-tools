@@ -5,6 +5,7 @@
 #include <assert.h>
 
 #include "tkvdb/tkvdb.h"
+#include "argparse/argparse.h"
 #include "readall.h"
 #include "ngrams.h"
 #include "common.h"
@@ -99,7 +100,7 @@ void emit_ngram(char *start_ptr, char *end_ptr)
     {
         // We've seen this key before, increment its value
         if (DEBUG)
-            fprintf(stderr, "  result retrieved: %llu\n", *(uint64_t *)value.data);
+            fprintf(stderr, "  result retrieved: %lu\n", *(uint64_t *)value.data);
         // Edit value in-place
         (*(uint64_t *)value.data)++;
     }
@@ -109,7 +110,7 @@ void emit_ngram(char *start_ptr, char *end_ptr)
         uint64_t initialValue = 1;
         value.data = (uint64_t *)&initialValue;
         if (DEBUG)
-            fprintf(stderr, "  result initialized: %llu\n", *(uint64_t *)value.data);
+            fprintf(stderr, "  result initialized: %lu\n", *(uint64_t *)value.data);
         // Add new key-value pair
         transaction->put(transaction, &key, &value);
     }
@@ -184,13 +185,38 @@ void for_each_ngram_of_file(void)
     free(content);
 }
 
+static const char *const usage[] = {
+    "tally-ngrams [options] [[--] files]",
+    "tally-ngrams [options]",
+    NULL,
+};
+// printf("USAGE: tally-ngrams <db-file> [text-file]\n\n");
+// printf("  e.g. $ ./tally-ngrams baseline.tkvdb book.txt\n");
+// printf("    or $ cat book.txt | ./tally-ngrams baseline.tkvdb\n");
+
 int main(int argc, char const *argv[])
 {
+
+    const char *db_storage_path = NULL;
+
+    struct argparse_option options[] = {
+        OPT_HELP(),
+        OPT_STRING('d', "database", &db_storage_path, "tkvdb database (optional)"),
+        OPT_END(),
+    };
+
+    struct argparse argparse;
+    argparse_init(&argparse, options, usage, 0);
+    argparse_describe(&argparse,
+                      "\nA command-line utility to tally ngrams and send results to STDOUT or a tkvdb database.",
+                      "\nExample: ./tally-ngrams book.ngrams");
+    argc = argparse_parse(&argparse, argc, argv);
+
+    fprintf(stderr, "argc: %d\n", argc);
+
+    /*
     if (argc == 1)
     {
-        printf("USAGE: tally-ngrams <db-file> [text-file]\n\n");
-        printf("  e.g. $ ./tally-ngrams baseline.tkvdb book.txt\n");
-        printf("    or $ cat book.txt | ./tally-ngrams baseline.tkvdb\n");
     }
     else if (argc >= 2)
     {
@@ -209,7 +235,7 @@ int main(int argc, char const *argv[])
         const char *db_storage_path = argv[1];
         with_db(db_storage_path, for_each_ngram_of_file);
     }
-
+*/
     fprintf(stderr, "ngrams emitted: %d\n", total_ngrams_emitted);
     return 0;
 }

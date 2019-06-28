@@ -78,3 +78,4 @@ int readall(FILE *in, char **dataptr, size_t *sizeptr)
 
     return READALL_OK;
 }
+

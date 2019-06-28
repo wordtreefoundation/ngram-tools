@@ -69,7 +69,7 @@ void emit_ngram(char *start_ptr, char *end_ptr)
     key.size = (size_t)(end_ptr - start_ptr);
 
     // All values will be 64-bit unsigned integers
-    value.size = sizeof(uint16_t);
+    value.size = sizeof(uint64_t);
 
     if (transaction == NULL)
     {
@@ -83,7 +83,8 @@ void emit_ngram(char *start_ptr, char *end_ptr)
     {
         // We've seen this key before, increment its value
         if (DEBUG)
-            printf("result retrieved: %zu\n", *(uint64_t *)value.data);
+            printf("result retrieved: %llu\n", *(uint64_t *)value.data);
+        // Edit value in-place
         (*(uint64_t *)value.data)++;
     }
     else
@@ -92,11 +93,10 @@ void emit_ngram(char *start_ptr, char *end_ptr)
         uint64_t initialValue = 1;
         value.data = (uint64_t *)&initialValue;
         if (DEBUG)
-            printf("result initialized: %zu\n", *(uint64_t *)value.data);
+            printf("result initialized: %llu\n", *(uint64_t *)value.data);
+        // Add new key-value pair
+        transaction->put(transaction, &key, &value);
     }
-
-    // Store off the result
-    transaction->put(transaction, &key, &value);
 
     total_ngrams_emitted++;
 }

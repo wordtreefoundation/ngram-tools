@@ -56,6 +56,45 @@ size (bytes): 1417363
 ...
 ```
 
+### reduce.sh
+
+This shell script uses `awk` to take a stream of ngrams and their counts as input, sum them, and produce a stream of ngrams and their summed counts as output.
+
+For example, with these two files as input:
+
+`file1.4grams.txt`:
+
+```
+      5 hello this is a
+      3 test to see if
+      1 it works or not
+```
+
+`file2.4grams.txt`:
+
+```
+      3 test to see if
+      1 it works or not
+      1 and maybe it will
+```
+
+We can reduce them as follows:
+
+```
+cat file1.4grams.txt file2.4grams.txt | ./reduce.sh
+```
+
+And get output like this:
+
+```
+      6 test to see if
+      2 it works or not
+      1 and maybe it will
+      5 hello this is a
+```
+
+(Note that the contents of both files are combined, and the `test to see if` 4gram counts have been summed as 3+3=6).
+
 ### tally-ngrams
 
 You can count up ngrams in a file and add them to an ongoing, persistent tally (database) via:

@@ -18,7 +18,12 @@ int total_file_size = 0;
 
 void with_db(const char *path, void (*action)(void))
 {
-    tkvdb *db = tkvdb_open(path, NULL);
+    tkvdb *db = NULL;
+
+    if (path != NULL)
+    {
+        db = tkvdb_open(path, NULL);
+    }
     transaction = tkvdb_tr_create(db, NULL);
 
     transaction->begin(transaction);
@@ -26,20 +31,27 @@ void with_db(const char *path, void (*action)(void))
     transaction->commit(transaction);
 
     transaction->free(transaction);
-    tkvdb_close(db);
+
+    if (path != NULL)
+    {
+        tkvdb_close(db);
+    }
 }
 
 FILE *file_open(const char *path)
 {
-    input_file =
-        path == NULL
-            ? stdin
-            : fopen(path, "r");
-
-    if (input_file == NULL)
+    if (path == NULL)
     {
-        printf("Failed to open file.\n");
-        exit(EXIT_FAILURE);
+        input_file = stdin;
+    }
+    else
+    {
+        input_file = fopen(path, "r");
+        if (input_file == NULL)
+        {
+            fprintf(stderr, "  failed to open file: %s\n", path);
+            exit(EXIT_FAILURE);
+        }
     }
 
     return input_file;
@@ -47,7 +59,9 @@ FILE *file_open(const char *path)
 
 void print_range(char *start_ptr, char *end_ptr)
 {
-    assert(start_ptr <= end_ptr);
+    assert(start_ptr != NULL);
+    assert(end_ptr != NULL);
+
     while (start_ptr <= end_ptr)
     {
         putchar(*start_ptr++);
@@ -57,6 +71,8 @@ void print_range(char *start_ptr, char *end_ptr)
 
 void emit_ngram(char *start_ptr, char *end_ptr)
 {
+    assert(start_ptr != NULL);
+    assert(end_ptr != NULL);
     assert(start_ptr <= end_ptr);
 
     if (DEBUG)
@@ -73,7 +89,7 @@ void emit_ngram(char *start_ptr, char *end_ptr)
 
     if (transaction == NULL)
     {
-        printf("null transaction\n");
+        fprintf(stderr, "  null transaction\n");
         exit(EXIT_FAILURE);
     }
 
@@ -83,7 +99,7 @@ void emit_ngram(char *start_ptr, char *end_ptr)
     {
         // We've seen this key before, increment its value
         if (DEBUG)
-            printf("result retrieved: %llu\n", *(uint64_t *)value.data);
+            fprintf(stderr, "  result retrieved: %llu\n", *(uint64_t *)value.data);
         // Edit value in-place
         (*(uint64_t *)value.data)++;
     }
@@ -93,7 +109,7 @@ void emit_ngram(char *start_ptr, char *end_ptr)
         uint64_t initialValue = 1;
         value.data = (uint64_t *)&initialValue;
         if (DEBUG)
-            printf("result initialized: %llu\n", *(uint64_t *)value.data);
+            fprintf(stderr, "  result initialized: %llu\n", *(uint64_t *)value.data);
         // Add new key-value pair
         transaction->put(transaction, &key, &value);
     }
@@ -109,12 +125,12 @@ void for_each_ngram_of_file(void)
     int result = readall(input_file, &content, &len);
 
     total_file_size = (int)len;
-    fprintf(stderr, "size (bytes): %d\n", total_file_size);
+    fprintf(stderr, "  size (bytes): %d\n", total_file_size);
 
     if (result == READALL_OK)
     {
         if (DEBUG)
-            printf("FILE READ SUCCESSFUL\n");
+            fprintf(stderr, "  file read was SUCCESSFUL\n");
 
         len = text_clean_cstr(content);
         content[len] = '\0';
@@ -161,7 +177,7 @@ void for_each_ngram_of_file(void)
     }
     else
     {
-        printf("Unable to read file into memory\n");
+        fprintf(stderr, "  file read FAILED\n");
         exit(EXIT_FAILURE);
     }
 

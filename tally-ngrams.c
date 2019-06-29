@@ -20,7 +20,7 @@ int DEBUG = false;
 int total_ngrams_emitted = 0;
 int total_file_size = 0;
 
-void with_db(const char *path, void (*action)(void))
+void open_db(const char *path)
 {
     tkvdb *db = NULL;
 
@@ -29,17 +29,19 @@ void with_db(const char *path, void (*action)(void))
         db = tkvdb_open(path, NULL);
     }
     transaction = tkvdb_tr_create(db, NULL);
+}
 
-    transaction->begin(transaction);
-    (*action)();
-    transaction->commit(transaction);
-
+void close_db()
+{
     transaction->free(transaction);
 
     if (path != NULL)
     {
         tkvdb_close(db);
     }
+}
+void with_db(const char *path, void (*action)(void))
+{
 }
 
 FILE *open_file(const char *path)
@@ -122,6 +124,16 @@ void dump_database(void)
     TKVDB_RES rc;
 
     tkvdb_cursor *cursor = tkvdb_cursor_create(transaction);
+    if (!cursor)
+    {
+        fprintf(stderr, "Can't create cursor\n");
+
+        transaction->free(transaction);
+        // tkvdb_close(db);
+        exit(EXIT_FAILURE);
+    }
+
+    // transaction->begin(transaction);
 
     char *key;
     size_t key_len;
@@ -238,10 +250,15 @@ void iterate_over_ngrams(void)
     if (line)
         free(line);
 
-    if (db_storage_path == NULL || SHOW_OUTPUT)
-    {
-        dump_database();
-    }
+    // TKVDB_RES rc = transaction->commit(transaction);
+    // if (rc != TKVDB_OK)
+    // {
+    //     fprintf(stderr, "commit() failed with code %d\n", rc);
+
+    //     transaction->free(transaction);
+    //     // tkvdb_close(db);
+    //     exit(EXIT_FAILURE);
+    // }
 }
 
 static const char *const usage[] = {
@@ -277,20 +294,42 @@ int main(int argc, char const *argv[])
         input_file = stdin;
         if (VERBOSE)
             fprintf(stderr, "Reading from STDIN\n");
-        with_db(db_storage_path, iterate_over_ngrams);
+
+        open_db(db_storage_path);
+        transaction->begin(transaction);
+        iterate_over_ngrams();
+        transaction->commit(transaction);
+        close_db();
+
+        if (db_storage_path == NULL || SHOW_OUTPUT)
+        {
+            dump_database();
+        }
+
         fclose(input_file);
     }
     else
     {
+        open_db(db_storage_path);
         for (int i = 0; i < argc; i++)
         {
             const char *text_file_path = argv[i];
             input_file = open_file(text_file_path);
             if (VERBOSE)
                 fprintf(stderr, "Reading file %s\n", text_file_path);
-            with_db(db_storage_path, iterate_over_ngrams);
+            transaction->begin(transaction);
+            iterate_over_ngrams();
+            transaction->commit(transaction);
+
             fclose(input_file);
         }
+
+        if (db_storage_path == NULL || SHOW_OUTPUT)
+        {
+            dump_database();
+        }
+
+        close_db();
     }
 
     if (VERBOSE)

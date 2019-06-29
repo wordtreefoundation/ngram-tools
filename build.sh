@@ -1,7 +1,8 @@
 #!/bin/bash
 
 echo "Building tally-ngrams..."
-cc -g -Wall -pedantic -Wextra -I./argparse -I./tkvdb \
+cc -g -Wall -pedantic -Wextra -Wno-missing-field-initializers \
+    -I./argparse -I./tkvdb \
     argparse/argparse.c \
     tkvdb/tkvdb.c \
     ngrams.c \

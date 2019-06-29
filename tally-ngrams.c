@@ -2,16 +2,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
+#include <errno.h>
 #include <assert.h>
 
 #include "tkvdb/tkvdb.h"
 #include "argparse/argparse.h"
-#include "readall.h"
-#include "ngrams.h"
 #include "common.h"
 
 FILE *input_file;
 tkvdb_tr *transaction;
+const char *db_storage_path = NULL;
+int VERBOSE = false;
+int SHOW_OUTPUT = false;
 int DEBUG = false;
 
 int total_ngrams_emitted = 0;
@@ -39,155 +42,196 @@ void with_db(const char *path, void (*action)(void))
     }
 }
 
-FILE *file_open(const char *path)
+FILE* open_file(const char *path)
 {
-    if (path == NULL)
+    FILE* file = fopen(path, "r");
+    if (file == NULL)
     {
-        input_file = stdin;
+        fprintf(stderr, "  failed to open file: %s\n", path);
+        exit(EXIT_FAILURE);
+    }
+
+    return file;
+}
+
+void print_range(char *start_ptr, size_t len)
+{
+  assert(start_ptr != NULL);
+  assert(len > 0);
+
+  char* end_ptr = start_ptr + len;
+  while (start_ptr <= end_ptr)
+  {
+    putchar(*start_ptr++);
+  }
+  putchar('\n');
+}
+
+void emit_ngram(char *start_ptr, size_t len, uint64_t count)
+{
+  assert(start_ptr != NULL);
+  if (len == 0 || count == 0) return;
+
+  if (DEBUG)
+    print_range(start_ptr, len);
+
+  tkvdb_datum key, value;
+  TKVDB_RES result;
+
+  key.data = start_ptr;
+  key.size = len;
+
+  // All values will be 64-bit unsigned integers
+  value.size = sizeof(uint64_t);
+
+  if (transaction == NULL)
+  {
+    fprintf(stderr, "  null transaction\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Retrieve current value of the key, if any
+  result = transaction->get(transaction, &key, &value);
+  if (result == TKVDB_OK)
+  {
+    // We've seen this key before, increment its value
+    if (DEBUG)
+      fprintf(stderr, "  result retrieved: %"PRId64"\n", *(uint64_t *)value.data);
+    // Edit value in-place
+    (*(uint64_t *)value.data) += count;
+  }
+  else
+  {
+    // This is the first-ever value for this key
+    value.data = (uint64_t *)&count;
+    if (DEBUG)
+      fprintf(stderr, "  result initialized: %"PRId64"\n", *(uint64_t *)value.data);
+    // Add new key-value pair
+    transaction->put(transaction, &key, &value);
+  }
+
+  total_ngrams_emitted++;
+}
+
+void dump_database(void)
+{
+  TKVDB_RES rc;
+
+  tkvdb_cursor *cursor = tkvdb_cursor_create(transaction);
+
+  char* key;
+  size_t key_len;
+  uint64_t val;
+
+  rc = cursor->first(cursor);
+  while (rc == TKVDB_OK) {
+    key = cursor->key(cursor);
+    key_len = cursor->keysize(cursor);
+    val = *(uint64_t*)cursor->val(cursor);
+
+    printf("%"PRId64" ", val);
+    fwrite(key, sizeof(char), key_len, stdout);
+    putc('\n', stdout);
+
+    rc = cursor->next(cursor);
+  }
+
+  cursor->free(cursor);
+}
+
+void iterate_over_ngrams(void)
+{
+  char* line = NULL;
+  size_t len = 0;
+  ssize_t read;
+
+  char* first_non_white_space;
+  char* whitespace_after;
+  uint64_t tally;
+  while ((read = getline(&line, &len, input_file)) != -1) {
+    // Remove newline at end of line, if present
+    if (len > 0 && line[read - 1] == '\n') line[--read] = '\0';
+
+    if (VERBOSE)
+    {
+      fprintf(stderr, "%zu bytes: %s\n", read, line);
+    }
+
+    // Skip any whitespace at beginning of line
+    first_non_white_space = line;
+    while (*first_non_white_space == ' ' ||
+           *first_non_white_space == '\t')
+    {
+      if (*first_non_white_space == '\0') break;
+      first_non_white_space++;
+    }
+
+    // We're expecting an integer, find out where its digits end
+    whitespace_after = first_non_white_space;
+    while (*whitespace_after != ' ' &&
+           *whitespace_after != '\t')
+    {
+      if (*whitespace_after == '\0') break;
+      whitespace_after++;
+    }
+
+    if (*first_non_white_space == '\0' || *whitespace_after == '\0')
+    {
+      if (DEBUG) fprintf(stderr, "  skipping line: %s\n", line);
     }
     else
     {
-        input_file = fopen(path, "r");
-        if (input_file == NULL)
+      if (*whitespace_after == '\0')
+      {
+        if (DEBUG) fprintf(stderr, "  skipping line without ngram: %s\n", line);
+      }
+      else
+      {
+        // Put an EOL where we found whitespace after the digits, so we can conver to num
+        *whitespace_after = '\0';
+        uintmax_t num = strtoumax(first_non_white_space, NULL, 10);
+        if (num == UINTMAX_MAX && errno == ERANGE)
         {
-            fprintf(stderr, "  failed to open file: %s\n", path);
+            fprintf(stderr, "  could not convert to integer: %s\n", first_non_white_space);
             exit(EXIT_FAILURE);
         }
-    }
 
-    return input_file;
-}
+        // We have the count!
+        tally = (uint64_t)num;
 
-void print_range(char *start_ptr, char *end_ptr)
-{
-    assert(start_ptr != NULL);
-    assert(end_ptr != NULL);
-
-    while (start_ptr <= end_ptr)
-    {
-        putchar(*start_ptr++);
-    }
-    putchar('\n');
-}
-
-void emit_ngram(char *start_ptr, char *end_ptr)
-{
-    assert(start_ptr != NULL);
-    assert(end_ptr != NULL);
-    assert(start_ptr <= end_ptr);
-
-    if (DEBUG)
-        print_range(start_ptr, end_ptr);
-
-    tkvdb_datum key, value;
-    TKVDB_RES result;
-
-    key.data = start_ptr;
-    key.size = (size_t)(end_ptr - start_ptr);
-
-    // All values will be 64-bit unsigned integers
-    value.size = sizeof(uint64_t);
-
-    if (transaction == NULL)
-    {
-        fprintf(stderr, "  null transaction\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Retrieve current value of the key, if any
-    result = transaction->get(transaction, &key, &value);
-    if (result == TKVDB_OK)
-    {
-        // We've seen this key before, increment its value
-        if (DEBUG)
-            fprintf(stderr, "  result retrieved: %lu\n", *(uint64_t *)value.data);
-        // Edit value in-place
-        (*(uint64_t *)value.data)++;
-    }
-    else
-    {
-        // In case this is the first-ever value for this key
-        uint64_t initialValue = 1;
-        value.data = (uint64_t *)&initialValue;
-        if (DEBUG)
-            fprintf(stderr, "  result initialized: %lu\n", *(uint64_t *)value.data);
-        // Add new key-value pair
-        transaction->put(transaction, &key, &value);
-    }
-
-    total_ngrams_emitted++;
-}
-
-void for_each_ngram_of_file(void)
-{
-    char *content = NULL;
-    size_t len = 0;
-
-    int result = readall(input_file, &content, &len);
-
-    total_file_size = (int)len;
-    fprintf(stderr, "  size (bytes): %d\n", total_file_size);
-
-    if (result == READALL_OK)
-    {
-        if (DEBUG)
-            fprintf(stderr, "  file read was SUCCESSFUL\n");
-
-        len = text_clean_cstr(content);
-        content[len] = '\0';
-
-        if (DEBUG)
-            printf("%s\n", content);
-
-        int ngram_size = 4;
-        assert(ngram_size < 32);
-
-        int word_count = 0;
-        char *word_boundary[32];
-        char *read;
-
-        word_boundary[word_count++] = content;
-        for (read = content; read <= content + len; read++)
+        if (VERBOSE)
+          fprintf(stderr, "tally: %"PRId64"\n", tally);
+        
+        // Skip whitespace between the number an the text (ngram)
+        whitespace_after++;
+        while (*whitespace_after == ' ' ||
+               *whitespace_after == '\t')
         {
-            if (*read == ' ' || *read == '.' || read == content + len)
-            {
-                word_boundary[word_count] = read + 1;
-                if (word_count == ngram_size)
-                {
-                    // The important part!
-                    emit_ngram(word_boundary[0], read - 1);
-
-                    for (int i = 0; i < word_count; i++)
-                    {
-                        word_boundary[i] = word_boundary[i + 1];
-                    }
-                }
-                else
-                {
-                    word_count++;
-                }
-
-                // Start new sentence
-                if (*read == '.')
-                {
-                    word_count = 0;
-                    word_boundary[word_count++] = read + 1;
-                }
-            }
+          if (*whitespace_after == '\0') break;
+          whitespace_after++;
         }
-    }
-    else
-    {
-        fprintf(stderr, "  file read FAILED\n");
-        exit(EXIT_FAILURE);
-    }
 
-    free(content);
+        if (*whitespace_after != '\0')
+        {
+          size_t skipped = (size_t)(whitespace_after - line);
+          if (VERBOSE) fprintf(stderr, "ngram: %s", whitespace_after);
+          if (VERBOSE) fprintf(stderr, "skipped: %zu\n", skipped);
+          emit_ngram(whitespace_after, len - skipped, tally);
+        }
+      }
+    }
+  }
+  if (line) free(line);
+
+  if (db_storage_path == NULL || SHOW_OUTPUT)
+  {
+    dump_database();
+  }
 }
 
 static const char *const usage[] = {
     "tally-ngrams [options] [[--] files]",
-    "tally-ngrams [options]",
+    NULL,
     NULL,
 };
 // printf("USAGE: tally-ngrams <db-file> [text-file]\n\n");
@@ -196,46 +240,43 @@ static const char *const usage[] = {
 
 int main(int argc, char const *argv[])
 {
-
-    const char *db_storage_path = NULL;
-
     struct argparse_option options[] = {
         OPT_HELP(),
-        OPT_STRING('d', "database", &db_storage_path, "tkvdb database (optional)"),
+        OPT_GROUP("Basic Options"),
+        OPT_STRING('p', "persist", &db_storage_path, "on-disk key-value storage file (optional)"),
+        OPT_BOOLEAN('s', "show", &SHOW_OUTPUT, "show ngram stored in database"),
+        OPT_BOOLEAN('v', "verbose", &VERBOSE, "print some detail as progress is made"),
+        OPT_BOOLEAN('d', "debug", &DEBUG, "show debug info"),
         OPT_END(),
     };
 
     struct argparse argparse;
     argparse_init(&argparse, options, usage, 0);
     argparse_describe(&argparse,
-                      "\nA command-line utility to tally ngrams and send results to STDOUT or a tkvdb database.",
+                      "\nA command-line utility to tally ngrams and send results to STDOUT or persist to disk.",
                       "\nExample: ./tally-ngrams book.ngrams");
     argc = argparse_parse(&argparse, argc, argv);
 
-    fprintf(stderr, "argc: %d\n", argc);
-
-    /*
-    if (argc == 1)
+    if (argc == 0)
     {
+      input_file = stdin;
+      if (VERBOSE) fprintf(stderr, "Reading from STDIN\n");
+      with_db(db_storage_path, iterate_over_ngrams);
+      fclose(input_file);
     }
-    else if (argc >= 2)
+    else
     {
-        const char *text_file_path = NULL;
-        if (argc == 3)
-        {
-            text_file_path = argv[2];
-            fprintf(stderr, "tally-ngrams: %s\n", text_file_path);
-        }
-        else
-        {
-            fprintf(stderr, "tally-ngrams: STDIN\n");
-        }
-        file_open(text_file_path);
-
-        const char *db_storage_path = argv[1];
-        with_db(db_storage_path, for_each_ngram_of_file);
+      for (int i = 0; i < argc; i++)
+      {
+        const char* text_file_path = argv[i];
+        input_file = open_file(text_file_path);
+        if (VERBOSE) fprintf(stderr, "Reading file %s\n", text_file_path);
+        with_db(db_storage_path, iterate_over_ngrams);
+        fclose(input_file);
+      }
     }
-*/
-    fprintf(stderr, "ngrams emitted: %d\n", total_ngrams_emitted);
+
+    if (VERBOSE)
+      fprintf(stderr, "ngrams emitted: %d\n", total_ngrams_emitted);
     return 0;
 }

@@ -10,9 +10,16 @@
 #include "argparse/argparse.h"
 #include "common.h"
 
-FILE *input_file;
-tkvdb_tr *transaction;
-const char *db_storage_path = NULL;
+#define TRANSACTION_SIZE 100 * 1024 * 1024
+
+tkvdb* db = NULL;
+tkvdb_params* params = NULL;
+tkvdb_tr* transaction = NULL;
+tkvdb_cursor* cursor = NULL;
+const char* db_storage_path = NULL;
+
+FILE* input_file;
+
 int VERBOSE = false;
 int SHOW_OUTPUT = false;
 int DEBUG = false;
@@ -20,28 +27,73 @@ int DEBUG = false;
 int total_ngrams_emitted = 0;
 int total_file_size = 0;
 
+void begin_transaction();
+void commit_transaction();
+
 void open_db(const char *path)
 {
-    tkvdb *db = NULL;
-
     if (path != NULL)
     {
         db = tkvdb_open(path, NULL);
     }
-    transaction = tkvdb_tr_create(db, NULL);
+    
+  	params = tkvdb_params_create();
+	  if (!params) {
+        fprintf(stderr, "Can't create database parameters\n");
+        exit(EXIT_FAILURE);
+    }
+
+    tkvdb_param_set(params, TKVDB_PARAM_TR_DYNALLOC, 0);
+    tkvdb_param_set(params, TKVDB_PARAM_TR_LIMIT, TRANSACTION_SIZE);
+    tkvdb_param_set(params, TKVDB_PARAM_ALIGNVAL, sizeof(uint64_t));
+
+    transaction = tkvdb_tr_create(db, params);
 }
 
 void close_db()
 {
     transaction->free(transaction);
 
-    if (path != NULL)
+    if (db != NULL)
     {
         tkvdb_close(db);
     }
 }
-void with_db(const char *path, void (*action)(void))
+
+void begin_transaction()
 {
+    if (DEBUG) fprintf(stderr, "begin_transaction()\n");
+    transaction->begin(transaction);
+}
+
+void commit_transaction()
+{
+    if (DEBUG) fprintf(stderr, "commit_transaction()\n");
+    TKVDB_RES rc = transaction->commit(transaction);
+    if (rc != TKVDB_OK)
+    {
+        fprintf(stderr, "commit() failed with code %d\n", rc);
+        close_db();
+        exit(EXIT_FAILURE);
+    }
+}
+
+void create_cursor()
+{
+    if (DEBUG) fprintf(stderr, "create_cursor()\n");
+    cursor = tkvdb_cursor_create(transaction);
+    if (!cursor)
+    {
+        fprintf(stderr, "can't create cursor\n");
+        close_db();
+        exit(EXIT_FAILURE);
+    }
+}
+
+void free_cursor()
+{
+    if (DEBUG) fprintf(stderr, "free_cursor()\n");
+    cursor->free(cursor);
 }
 
 FILE *open_file(const char *path)
@@ -60,7 +112,9 @@ void print_range(char *start_ptr, size_t len)
 {
     assert(start_ptr != NULL);
     assert(len > 0);
-
+    
+    putchar(' ');
+    putchar(' ');
     char *end_ptr = start_ptr + len;
     while (start_ptr <= end_ptr)
     {
@@ -85,7 +139,7 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
     key.size = len;
 
     if (DEBUG)
-        fprintf(stderr, "key.size: %zu\n", key.size);
+        fprintf(stderr, "  key size: %zu\n", key.size);
 
     // All values will be 64-bit unsigned integers
     value.size = sizeof(uint64_t);
@@ -105,6 +159,8 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
             fprintf(stderr, "  result retrieved: %" PRId64 "\n", *(uint64_t *)value.data);
         // Edit value in-place
         (*(uint64_t *)value.data) += count;
+        if (DEBUG)
+            fprintf(stderr, "  new result: %" PRId64 "\n", *(uint64_t *)value.data);
     }
     else
     {
@@ -121,25 +177,22 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
 
 void dump_database(void)
 {
-    TKVDB_RES rc;
-
-    tkvdb_cursor *cursor = tkvdb_cursor_create(transaction);
-    if (!cursor)
-    {
-        fprintf(stderr, "Can't create cursor\n");
-
-        transaction->free(transaction);
-        // tkvdb_close(db);
-        exit(EXIT_FAILURE);
-    }
-
-    // transaction->begin(transaction);
+    begin_transaction();
+    create_cursor();
 
     char *key;
     size_t key_len;
     uint64_t val;
 
-    rc = cursor->first(cursor);
+    TKVDB_RES rc = cursor->first(cursor);
+    if (rc == TKVDB_EMPTY)
+    {
+        fprintf(stderr, "No results to show\n");
+    }
+    else if (rc != TKVDB_OK)
+    {
+        fprintf(stderr, "Can't show results: error %d\n", (int)rc);
+    }
     while (rc == TKVDB_OK)
     {
         key = cursor->key(cursor);
@@ -153,7 +206,8 @@ void dump_database(void)
         rc = cursor->next(cursor);
     }
 
-    cursor->free(cursor);
+    free_cursor();
+    // commit_transaction();
 }
 
 void iterate_over_ngrams(void)
@@ -165,15 +219,16 @@ void iterate_over_ngrams(void)
     char *first_non_white_space;
     char *whitespace_after;
     uint64_t tally;
+    
     while ((read = getline(&line, &len, input_file)) != -1)
     {
         // Remove newline at end of line, if present
         if (read > 0 && line[read - 1] == '\n')
             line[--read] = '\0';
 
-        if (VERBOSE)
+        if (DEBUG)
         {
-            fprintf(stderr, "%zu bytes: %s\n", read, line);
+            fprintf(stderr, "  %zu bytes: %s\n", read, line);
         }
 
         // Skip any whitespace at beginning of line
@@ -222,8 +277,8 @@ void iterate_over_ngrams(void)
                 // We have the count!
                 tally = (uint64_t)num;
 
-                if (VERBOSE)
-                    fprintf(stderr, "tally: %" PRId64 "\n", tally);
+                if (DEBUG)
+                    fprintf(stderr, "  tally: %" PRId64 "\n", tally);
 
                 // Skip whitespace between the number an the text (ngram)
                 whitespace_after++;
@@ -238,10 +293,8 @@ void iterate_over_ngrams(void)
                 if (*whitespace_after != '\0')
                 {
                     size_t skipped = (size_t)(whitespace_after - line);
-                    if (VERBOSE)
-                        fprintf(stderr, "ngram: %s\n", whitespace_after);
-                    if (VERBOSE)
-                        fprintf(stderr, "skipped: %zu\n", skipped);
+                    if (DEBUG)
+                        fprintf(stderr, "  ngram: %s, skipped: %zu\n", whitespace_after, skipped);
                     emit_ngram(whitespace_after, read - skipped, tally);
                 }
             }
@@ -250,15 +303,6 @@ void iterate_over_ngrams(void)
     if (line)
         free(line);
 
-    // TKVDB_RES rc = transaction->commit(transaction);
-    // if (rc != TKVDB_OK)
-    // {
-    //     fprintf(stderr, "commit() failed with code %d\n", rc);
-
-    //     transaction->free(transaction);
-    //     // tkvdb_close(db);
-    //     exit(EXIT_FAILURE);
-    // }
 }
 
 static const char *const usage[] = {
@@ -276,11 +320,14 @@ int main(int argc, char const *argv[])
         OPT_HELP(),
         OPT_GROUP("Basic Options"),
         OPT_STRING('p', "persist", &db_storage_path, "on-disk key-value storage file (optional)"),
-        OPT_BOOLEAN('s', "show", &SHOW_OUTPUT, "show ngram stored in database"),
+        OPT_BOOLEAN('s', "show", &SHOW_OUTPUT, "show ngrams after processing"),
         OPT_BOOLEAN('v', "verbose", &VERBOSE, "print some detail as progress is made"),
         OPT_BOOLEAN('d', "debug", &DEBUG, "show debug info"),
         OPT_END(),
     };
+
+    if (db_storage_path == NULL)
+      SHOW_OUTPUT = true;
 
     struct argparse argparse;
     argparse_init(&argparse, options, usage, 0);
@@ -289,50 +336,42 @@ int main(int argc, char const *argv[])
                       "\nExample: ./tally-ngrams book.ngrams");
     argc = argparse_parse(&argparse, argc, argv);
 
+    open_db(db_storage_path);
+    begin_transaction();
+
     if (argc == 0)
     {
-        input_file = stdin;
         if (VERBOSE)
             fprintf(stderr, "Reading from STDIN\n");
-
-        open_db(db_storage_path);
-        transaction->begin(transaction);
+        
+        input_file = stdin;
         iterate_over_ngrams();
-        transaction->commit(transaction);
-        close_db();
-
-        if (db_storage_path == NULL || SHOW_OUTPUT)
-        {
-            dump_database();
-        }
-
         fclose(input_file);
     }
     else
     {
-        open_db(db_storage_path);
         for (int i = 0; i < argc; i++)
         {
             const char *text_file_path = argv[i];
-            input_file = open_file(text_file_path);
             if (VERBOSE)
                 fprintf(stderr, "Reading file %s\n", text_file_path);
-            transaction->begin(transaction);
+            
+            input_file = open_file(text_file_path);
             iterate_over_ngrams();
-            transaction->commit(transaction);
-
             fclose(input_file);
         }
-
-        if (db_storage_path == NULL || SHOW_OUTPUT)
-        {
-            dump_database();
-        }
-
-        close_db();
     }
 
+    if (SHOW_OUTPUT)
+    {
+        if (VERBOSE) fprintf(stderr, "Showing results\n");
+        dump_database();
+    }
+
+    commit_transaction();
+    close_db();
+
     if (VERBOSE)
-        fprintf(stderr, "ngrams emitted: %d\n", total_ngrams_emitted);
+        fprintf(stderr, "Processed %d ngrams\n", total_ngrams_emitted);
     return 0;
 }

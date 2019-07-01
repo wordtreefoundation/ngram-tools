@@ -6,31 +6,18 @@
 #include <errno.h>
 #include <assert.h>
 
+#include "argparse/argparse.h"
 #include "readall.h"
 #include "ngrams.h"
 #include "common.h"
 
 FILE *input_file;
+int NGRAMS = 1;
+int VERBOSE = false;
 int DEBUG = false;
 
 int total_ngrams_emitted = 0;
 int total_file_size = 0;
-
-FILE *file_open(const char *path)
-{
-    input_file =
-        path == NULL
-            ? stdin
-            : fopen(path, "r");
-
-    if (input_file == NULL)
-    {
-        printf("Failed to open file.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    return input_file;
-}
 
 void print_range(char *start_ptr, char *end_ptr)
 {
@@ -62,7 +49,8 @@ void for_each_ngram_of_file(int ngram_size)
     assert(ngram_size < 32);
 
     total_file_size = (int)len;
-    fprintf(stderr, "size (bytes): %d\n", total_file_size);
+    if (VERBOSE)
+        fprintf(stderr, "size (bytes): %d\n", total_file_size);
 
     if (result == READALL_OK)
     {
@@ -119,38 +107,55 @@ void for_each_ngram_of_file(int ngram_size)
     free(content);
 }
 
+static const char *const usage[] = {
+    "text-to-ngrams [options] [[--] files]",
+    NULL,
+    NULL,
+};
+
 int main(int argc, char const *argv[])
 {
-    if (argc == 1)
-    {
-        printf("USAGE: text-to-ngrams <ngrams> [text-file]\n\n");
-        printf("  e.g. $ ./text-to-ngrams 4 book.txt\n");
-        printf("    or $ cat book.txt | ./text-to-ngrams 4\n");
-    }
-    else if (argc >= 2)
-    {
-        const char *text_file_path = NULL;
-        if (argc == 3)
-        {
-            text_file_path = argv[2];
-            fprintf(stderr, "Input File: %s\n", text_file_path);
-        }
-        else
-        {
-            fprintf(stderr, "Input File: STDIN\n");
-        }
-        file_open(text_file_path);
+    struct argparse_option options[] = {
+        OPT_HELP(),
+        OPT_GROUP("Basic Options"),
+        OPT_INTEGER('n', "ngrams", &NGRAMS, "(integer) ngrams to produce"),
+        OPT_BOOLEAN('v', "verbose", &VERBOSE, "print some detail as progress is made"),
+        OPT_BOOLEAN('d', "debug", &DEBUG, "show debug info"),
+        OPT_END(),
+    };
 
-        const char *ngrams = argv[1];
-        uintmax_t num = strtoumax(ngrams, NULL, 10);
-        if (num == UINTMAX_MAX && errno == ERANGE)
+    struct argparse argparse;
+    argparse_init(&argparse, options, usage, 0);
+    argparse_describe(&argparse,
+                      "\nA command-line utility to convert a text file into a list of ngrams.",
+                      "\nExample: ./text-to-ngrams -n4 book.txt");
+    argc = argparse_parse(&argparse, argc, argv);
+
+    if (argc == 0)
+    {
+        if (VERBOSE)
+            fprintf(stderr, "Reading from STDIN\n");
+
+        input_file = stdin;
+        for_each_ngram_of_file(NGRAMS);
+        fclose(input_file);
+    }
+    else
+    {
+        for (int i = 0; i < argc; i++)
         {
-            fprintf(stderr, "Could not convert to integer: %s\n", ngrams);
-            exit(EXIT_FAILURE);
+            const char *text_file_path = argv[i];
+            if (VERBOSE)
+                fprintf(stderr, "Reading file %s\n", text_file_path);
+
+            input_file = open_file(text_file_path);
+            for_each_ngram_of_file(NGRAMS);
+            fclose(input_file);
         }
-        for_each_ngram_of_file(num);
     }
 
-    fprintf(stderr, "  ngrams emitted: %d\n", total_ngrams_emitted);
+    if (VERBOSE)
+        fprintf(stderr, "  ngrams emitted: %d\n", total_ngrams_emitted);
+    
     return 0;
 }

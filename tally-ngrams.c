@@ -20,8 +20,9 @@ const char* db_storage_path = NULL;
 
 FILE* input_file;
 
-int VERBOSE = false;
 int SHOW_OUTPUT = false;
+int COUNT = false;
+int VERBOSE = false;
 int DEBUG = false;
 
 int total_ngrams_emitted = 0;
@@ -94,18 +95,6 @@ void free_cursor()
 {
     if (DEBUG) fprintf(stderr, "free_cursor()\n");
     cursor->free(cursor);
-}
-
-FILE *open_file(const char *path)
-{
-    FILE *file = fopen(path, "r");
-    if (file == NULL)
-    {
-        fprintf(stderr, "  failed to open file: %s\n", path);
-        exit(EXIT_FAILURE);
-    }
-
-    return file;
 }
 
 void print_range(char *start_ptr, size_t len)
@@ -241,14 +230,17 @@ void iterate_over_ngrams(void)
             first_non_white_space++;
         }
 
-        // We're expecting an integer, find out where its digits end
         whitespace_after = first_non_white_space;
-        while (*whitespace_after != ' ' &&
-               *whitespace_after != '\t')
+        if (!COUNT)
         {
-            if (*whitespace_after == '\0')
-                break;
-            whitespace_after++;
+            // We're expecting an integer, find out where its digits end
+            while (*whitespace_after != ' ' &&
+                  *whitespace_after != '\t')
+            {
+                if (*whitespace_after == '\0')
+                    break;
+                whitespace_after++;
+            }
         }
 
         if (*first_non_white_space == '\0' || *whitespace_after == '\0')
@@ -265,29 +257,39 @@ void iterate_over_ngrams(void)
             }
             else
             {
-                // Put an EOL where we found whitespace after the digits, so we can conver to num
-                *whitespace_after = '\0';
-                uintmax_t num = strtoumax(first_non_white_space, NULL, 10);
-                if (num == UINTMAX_MAX && errno == ERANGE)
+                if (COUNT)
                 {
-                    fprintf(stderr, "  could not convert to integer: %s\n", first_non_white_space);
-                    exit(EXIT_FAILURE);
+                    tally = 1;
                 }
+                else
+                {
+                    // Put an EOL where we found whitespace after the digits, so we can conver to num
+                    *whitespace_after = '\0';
+                    uintmax_t num = strtoumax(first_non_white_space, NULL, 10);
+                    if (num == UINTMAX_MAX && errno == ERANGE)
+                    {
+                        fprintf(stderr, "  could not convert to integer: %s\n", first_non_white_space);
+                        exit(EXIT_FAILURE);
+                    }
 
-                // We have the count!
-                tally = (uint64_t)num;
+                    // We have the count!
+                    tally = (uint64_t)num;
+                }
 
                 if (DEBUG)
                     fprintf(stderr, "  tally: %" PRId64 "\n", tally);
 
-                // Skip whitespace between the number an the text (ngram)
-                whitespace_after++;
-                while (*whitespace_after == ' ' ||
-                       *whitespace_after == '\t')
+                if (!COUNT)
                 {
-                    if (*whitespace_after == '\0')
-                        break;
+                    // Skip whitespace between the number an the text (ngram)
                     whitespace_after++;
+                    while (*whitespace_after == ' ' ||
+                          *whitespace_after == '\t')
+                    {
+                        if (*whitespace_after == '\0')
+                            break;
+                        whitespace_after++;
+                    }
                 }
 
                 if (*whitespace_after != '\0')
@@ -310,9 +312,6 @@ static const char *const usage[] = {
     NULL,
     NULL,
 };
-// printf("USAGE: tally-ngrams <db-file> [text-file]\n\n");
-// printf("  e.g. $ ./tally-ngrams baseline.tkvdb book.txt\n");
-// printf("    or $ cat book.txt | ./tally-ngrams baseline.tkvdb\n");
 
 int main(int argc, char const *argv[])
 {
@@ -320,6 +319,7 @@ int main(int argc, char const *argv[])
         OPT_HELP(),
         OPT_GROUP("Basic Options"),
         OPT_STRING('p', "persist", &db_storage_path, "on-disk key-value storage file (optional)"),
+        OPT_BOOLEAN('c', "count", &COUNT, "count occurrences (no integer column expected)"),
         OPT_BOOLEAN('s', "show", &SHOW_OUTPUT, "show ngrams after processing"),
         OPT_BOOLEAN('v', "verbose", &VERBOSE, "print some detail as progress is made"),
         OPT_BOOLEAN('d', "debug", &DEBUG, "show debug info"),

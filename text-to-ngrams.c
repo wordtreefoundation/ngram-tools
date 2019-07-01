@@ -88,7 +88,8 @@ void for_each_ngram_of_file(int ngram_size)
                 if (word_count == ngram_size)
                 {
                     // The important part!
-                    emit_ngram(word_boundary[0], read - 1);
+                    if (read - word_boundary[0] > 0)
+                        emit_ngram(word_boundary[0], read - 1);
 
                     for (int i = 0; i < word_count; i++)
                     {

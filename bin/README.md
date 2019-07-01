@@ -1,0 +1,1 @@
+Binary files generated with `build.sh` script go here.

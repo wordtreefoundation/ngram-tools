@@ -2,23 +2,23 @@
 
 echo "Building tally-ngrams..."
 cc -g -Wall -pedantic -Wextra -Wno-missing-field-initializers \
-    -I./argparse -I./tkvdb \
+    -I./argparse -F./argparse -I./tkvdb -F./tkvdb \
     argparse/argparse.c \
     tkvdb/tkvdb.c \
-    common.c \
-    ngrams.c \
-    readall.c \
-    tally-ngrams.c \
-    -o tally-ngrams
+    src/common.c \
+    src/ngrams.c \
+    src/readall.c \
+    src/tally-ngrams.c \
+    -o bin/tally-ngrams
 
 echo "Building text-to-ngrams..."
 cc -g -Wall -pedantic -Wextra -Wno-missing-field-initializers \
-    -I./argparse \
+    -I./argparse -F./argparse \
     argparse/argparse.c \
-    common.c \
-    ngrams.c \
-    readall.c \
-    text-to-ngrams.c \
-    -o text-to-ngrams
+    src/common.c \
+    src/ngrams.c \
+    src/readall.c \
+    src/text-to-ngrams.c \
+    -o bin/text-to-ngrams
 
 echo "Done."

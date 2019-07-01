@@ -6,7 +6,8 @@
 #include <errno.h>
 #include <assert.h>
 
-#include "argparse/argparse.h"
+#include "argparse.h"
+
 #include "readall.h"
 #include "ngrams.h"
 #include "common.h"

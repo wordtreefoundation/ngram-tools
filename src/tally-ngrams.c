@@ -6,8 +6,9 @@
 #include <errno.h>
 #include <assert.h>
 
-#include "tkvdb/tkvdb.h"
-#include "argparse/argparse.h"
+#include "tkvdb.h"
+#include "argparse.h"
+
 #include "common.h"
 
 #define TRANSACTION_SIZE 100 * 1024 * 1024

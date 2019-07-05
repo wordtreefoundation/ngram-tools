@@ -12,3 +12,9 @@ FILE *open_file(const char *path)
 
     return file;
 }
+
+void print_range(char *start_ptr, char *end_ptr)
+{
+    while (start_ptr <= end_ptr) putchar(*start_ptr++);
+    putchar('\n');
+}

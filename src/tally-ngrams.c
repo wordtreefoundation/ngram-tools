@@ -200,7 +200,7 @@ void dump_database(void)
     // commit_transaction();
 }
 
-void iterate_over_ngrams(void)
+void iterate_over_ngrams(void(*each_ngram)(char*, size_t, uint64_t))
 {
     char *line = NULL;
     size_t len = 0;
@@ -298,7 +298,7 @@ void iterate_over_ngrams(void)
                     size_t skipped = (size_t)(whitespace_after - line);
                     if (DEBUG)
                         fprintf(stderr, "  ngram: %s, skipped: %zu\n", whitespace_after, skipped);
-                    emit_ngram(whitespace_after, read - skipped, tally);
+                    each_ngram(whitespace_after, read - skipped, tally);
                 }
             }
         }
@@ -346,7 +346,7 @@ int main(int argc, char const *argv[])
             fprintf(stderr, "Reading from STDIN\n");
         
         input_file = stdin;
-        iterate_over_ngrams();
+        iterate_over_ngrams(emit_ngram);
         fclose(input_file);
     }
     else
@@ -358,7 +358,7 @@ int main(int argc, char const *argv[])
                 fprintf(stderr, "Reading file %s\n", text_file_path);
             
             input_file = open_file(text_file_path);
-            iterate_over_ngrams();
+            iterate_over_ngrams(emit_ngram);
             fclose(input_file);
         }
     }

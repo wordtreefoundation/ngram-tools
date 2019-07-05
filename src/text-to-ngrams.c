@@ -20,16 +20,6 @@ int DEBUG = false;
 int total_ngrams_emitted = 0;
 int total_file_size = 0;
 
-void print_range(char *start_ptr, char *end_ptr)
-{
-    assert(start_ptr <= end_ptr);
-    while (start_ptr <= end_ptr)
-    {
-        putchar(*start_ptr++);
-    }
-    putchar('\n');
-}
-
 void emit_ngram(char *start_ptr, char *end_ptr)
 {
     assert(start_ptr <= end_ptr);
@@ -38,74 +28,6 @@ void emit_ngram(char *start_ptr, char *end_ptr)
 
     // Count the ngram in memory
     total_ngrams_emitted++;
-}
-
-void for_each_ngram_of_file(int ngram_size)
-{
-    char *content = NULL;
-    size_t len = 0;
-
-    int result = readall(input_file, &content, &len);
-
-    assert(ngram_size < 32);
-
-    total_file_size = (int)len;
-    if (VERBOSE)
-        fprintf(stderr, "size (bytes): %d\n", total_file_size);
-
-    if (result == READALL_OK)
-    {
-        if (DEBUG)
-            printf("FILE READ SUCCESSFUL\n");
-
-        len = text_clean_cstr(content);
-        content[len] = '\0';
-
-        if (DEBUG)
-            printf("%s\n", content);
-
-        int word_count = 0;
-        char *word_boundary[32];
-        char *read;
-
-        word_boundary[word_count++] = content;
-        for (read = content; read <= content + len; read++)
-        {
-            if (*read == ' ' || *read == '.' || read == content + len)
-            {
-                word_boundary[word_count] = read + 1;
-                if (word_count == ngram_size)
-                {
-                    // The important part!
-                    if (read - word_boundary[0] > 0)
-                        emit_ngram(word_boundary[0], read - 1);
-
-                    for (int i = 0; i < word_count; i++)
-                    {
-                        word_boundary[i] = word_boundary[i + 1];
-                    }
-                }
-                else
-                {
-                    word_count++;
-                }
-
-                // Start new sentence
-                if (*read == '.')
-                {
-                    word_count = 0;
-                    word_boundary[word_count++] = read + 1;
-                }
-            }
-        }
-    }
-    else
-    {
-        printf("Unable to read file into memory\n");
-        exit(EXIT_FAILURE);
-    }
-
-    free(content);
 }
 
 static const char *const usage[] = {

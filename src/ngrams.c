@@ -145,7 +145,7 @@ void for_each_ngram_of_file(
                         const size_t ngram_length = read - word_boundary[0];
                         on_ngram(
                           word_boundary[0],
-                          ngram_length,
+                          ngram_length - 1,
                           iter++
                         );
                     }

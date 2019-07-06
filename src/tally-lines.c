@@ -297,14 +297,13 @@ void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
 static const char *const usage[] = {
     "tally-lines [options] [[--] files]",
     NULL,
-    NULL,
 };
 
 int main(int argc, char const *argv[])
 {
     struct argparse_option options[] = {
         OPT_HELP(),
-        
+
         OPT_GROUP("Basic Options"),
         OPT_STRING('p', "persist", &db_storage_path, "on-disk key-value storage file (optional)"),
         OPT_BOOLEAN('c', "count", &COUNT, "count occurrences (no integer column expected)"),
@@ -322,7 +321,7 @@ int main(int argc, char const *argv[])
     argparse_init(&argparse, options, usage, 0);
     argparse_describe(&argparse,
                       "\nA command-line utility to tally ngrams and send results to STDOUT or persist to disk.",
-                      "\nExample: ./tally-ngrams book.ngrams");
+                      "\nExample: ./tally-lines book.ngrams");
     argc = argparse_parse(&argparse, argc, argv);
 
     open_db(db_storage_path);

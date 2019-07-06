@@ -115,14 +115,16 @@ void for_each_ngram_of_file(
 
     if (result == READALL_OK)
     {
-        if (DEBUG)
-            printf("FILE READ SUCCESSFUL\n");
+        #ifdef DEBUG
+        printf("FILE READ SUCCESSFUL\n");
+        #endif
 
         len = text_clean_cstr(content);
         content[len] = '\0';
 
-        if (DEBUG)
-            printf("%s\n", content);
+        #ifdef DEBUG
+        printf("%s\n", content);
+        #endif
 
         int iter = 0;
         int word_count = 0;

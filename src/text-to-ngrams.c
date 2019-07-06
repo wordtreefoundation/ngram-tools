@@ -12,19 +12,22 @@
 #include "ngrams.h"
 #include "common.h"
 
+// #define DEBUG 1
+
 FILE *input_file;
-int NGRAMS = 1;
-int VERBOSE = false;
-int DEBUG = false;
+int WORDS_PER_NGRAM = 1;
 
 int total_ngrams_emitted = 0;
 int total_file_size = 0;
 
-void emit_ngram(char *start_ptr, char *end_ptr)
+void print_ngram(char* start_ptr, size_t len, size_t index)
 {
-    assert(start_ptr <= end_ptr);
+    #pragma unused(index)
+    print_range(start_ptr, len);
 
-    print_range(start_ptr, end_ptr);
+    #ifdef DEBUG
+    fprintf(stderr, "%zu\n", index);
+    #endif
 
     // Count the ngram in memory
     total_ngrams_emitted++;
@@ -41,9 +44,9 @@ int main(int argc, char const *argv[])
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_GROUP("Basic Options"),
-        OPT_INTEGER('n', "ngrams", &NGRAMS, "(integer) ngrams to produce"),
+        OPT_INTEGER('n', "ngrams", &WORDS_PER_NGRAM, "(integer) ngrams to produce"),
+        OPT_GROUP("Other Options"),
         OPT_BOOLEAN('v', "verbose", &VERBOSE, "print some detail as progress is made"),
-        OPT_BOOLEAN('d', "debug", &DEBUG, "show debug info"),
         OPT_END(),
     };
 
@@ -60,7 +63,7 @@ int main(int argc, char const *argv[])
             fprintf(stderr, "Reading from STDIN\n");
 
         input_file = stdin;
-        for_each_ngram_of_file(NGRAMS);
+        for_each_ngram_of_file(input_file, WORDS_PER_NGRAM, print_ngram);
         fclose(input_file);
     }
     else
@@ -72,7 +75,7 @@ int main(int argc, char const *argv[])
                 fprintf(stderr, "Reading file %s\n", text_file_path);
 
             input_file = open_file(text_file_path);
-            for_each_ngram_of_file(NGRAMS);
+            for_each_ngram_of_file(input_file, WORDS_PER_NGRAM, print_ngram);
             fclose(input_file);
         }
     }

@@ -23,8 +23,6 @@ FILE* input_file;
 
 int SHOW_OUTPUT = false;
 int COUNT = false;
-int VERBOSE = false;
-int DEBUG = false;
 
 int total_ngrams_emitted = 0;
 int total_file_size = 0;
@@ -64,13 +62,17 @@ void close_db()
 
 void begin_transaction()
 {
-    if (DEBUG) fprintf(stderr, "begin_transaction()\n");
+    #ifdef DEBUG
+    fprintf(stderr, "begin_transaction()\n");
+    #endif
     transaction->begin(transaction);
 }
 
 void commit_transaction()
 {
+    #ifdef DEBUG
     if (DEBUG) fprintf(stderr, "commit_transaction()\n");
+    #endif
     TKVDB_RES rc = transaction->commit(transaction);
     if (rc != TKVDB_OK)
     {
@@ -82,7 +84,10 @@ void commit_transaction()
 
 void create_cursor()
 {
-    if (DEBUG) fprintf(stderr, "create_cursor()\n");
+    #ifdef DEBUG
+    fprintf(stderr, "create_cursor()\n");
+    #endif
+    
     cursor = tkvdb_cursor_create(transaction);
     if (!cursor)
     {
@@ -94,23 +99,10 @@ void create_cursor()
 
 void free_cursor()
 {
-    if (DEBUG) fprintf(stderr, "free_cursor()\n");
+    #ifdef DEBUG
+    fprintf(stderr, "free_cursor()\n");
+    #endif
     cursor->free(cursor);
-}
-
-void print_range(char *start_ptr, size_t len)
-{
-    assert(start_ptr != NULL);
-    assert(len > 0);
-    
-    putchar(' ');
-    putchar(' ');
-    char *end_ptr = start_ptr + len;
-    while (start_ptr <= end_ptr)
-    {
-        putchar(*start_ptr++);
-    }
-    putchar('\n');
 }
 
 void emit_ngram(char *start_ptr, size_t len, uint64_t count)
@@ -119,17 +111,19 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
     if (len == 0 || count == 0)
         return;
 
-    if (DEBUG)
+    #ifdef DEBUG
+    {
+        putchar(' ');
+        putchar(' ');
         print_range(start_ptr, len);
+    }
+    #endif
 
     tkvdb_datum key, value;
     TKVDB_RES result;
 
     key.data = start_ptr;
     key.size = len;
-
-    if (DEBUG)
-        fprintf(stderr, "  key size: %zu\n", key.size);
 
     // All values will be 64-bit unsigned integers
     value.size = sizeof(uint64_t);
@@ -144,20 +138,13 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
     result = transaction->get(transaction, &key, &value);
     if (result == TKVDB_OK)
     {
-        // We've seen this key before, increment its value
-        if (DEBUG)
-            fprintf(stderr, "  result retrieved: %" PRId64 "\n", *(uint64_t *)value.data);
         // Edit value in-place
         (*(uint64_t *)value.data) += count;
-        if (DEBUG)
-            fprintf(stderr, "  new result: %" PRId64 "\n", *(uint64_t *)value.data);
     }
     else
     {
         // This is the first-ever value for this key
         value.data = (uint64_t *)&count;
-        if (DEBUG)
-            fprintf(stderr, "  result initialized: %" PRId64 "\n", *(uint64_t *)value.data);
         // Add new key-value pair
         transaction->put(transaction, &key, &value);
     }
@@ -200,7 +187,7 @@ void dump_database(void)
     // commit_transaction();
 }
 
-void iterate_over_ngrams(void(*each_ngram)(char*, size_t, uint64_t))
+void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
 {
     char *line = NULL;
     size_t len = 0;
@@ -215,11 +202,6 @@ void iterate_over_ngrams(void(*each_ngram)(char*, size_t, uint64_t))
         // Remove newline at end of line, if present
         if (read > 0 && line[read - 1] == '\n')
             line[--read] = '\0';
-
-        if (DEBUG)
-        {
-            fprintf(stderr, "  %zu bytes: %s\n", read, line);
-        }
 
         // Skip any whitespace at beginning of line
         first_non_white_space = line;
@@ -246,15 +228,17 @@ void iterate_over_ngrams(void(*each_ngram)(char*, size_t, uint64_t))
 
         if (*first_non_white_space == '\0' || *whitespace_after == '\0')
         {
-            if (DEBUG)
-                fprintf(stderr, "  skipping line: %s\n", line);
+            #ifdef DEBUG
+            fprintf(stderr, "  skipping line: %s\n", line);
+            #endif
         }
         else
         {
             if (*whitespace_after == '\0')
             {
-                if (DEBUG)
-                    fprintf(stderr, "  skipping line without ngram: %s\n", line);
+                #ifdef DEBUG
+                fprintf(stderr, "  skipping line without ngram: %s\n", line);
+                #endif
             }
             else
             {
@@ -277,8 +261,9 @@ void iterate_over_ngrams(void(*each_ngram)(char*, size_t, uint64_t))
                     tally = (uint64_t)num;
                 }
 
-                if (DEBUG)
-                    fprintf(stderr, "  tally: %" PRId64 "\n", tally);
+                #ifdef DEBUG
+                fprintf(stderr, "  tally: %" PRId64 "\n", tally);
+                #endif
 
                 if (!COUNT)
                 {
@@ -296,8 +281,9 @@ void iterate_over_ngrams(void(*each_ngram)(char*, size_t, uint64_t))
                 if (*whitespace_after != '\0')
                 {
                     size_t skipped = (size_t)(whitespace_after - line);
-                    if (DEBUG)
-                        fprintf(stderr, "  ngram: %s, skipped: %zu\n", whitespace_after, skipped);
+                    #ifdef DEBUG
+                    fprintf(stderr, "  ngram: %s, skipped: %zu\n", whitespace_after, skipped);
+                    #endif
                     each_ngram(whitespace_after, read - skipped, tally);
                 }
             }
@@ -309,7 +295,7 @@ void iterate_over_ngrams(void(*each_ngram)(char*, size_t, uint64_t))
 }
 
 static const char *const usage[] = {
-    "tally-ngrams [options] [[--] files]",
+    "tally-lines [options] [[--] files]",
     NULL,
     NULL,
 };
@@ -318,12 +304,14 @@ int main(int argc, char const *argv[])
 {
     struct argparse_option options[] = {
         OPT_HELP(),
+        
         OPT_GROUP("Basic Options"),
         OPT_STRING('p', "persist", &db_storage_path, "on-disk key-value storage file (optional)"),
         OPT_BOOLEAN('c', "count", &COUNT, "count occurrences (no integer column expected)"),
         OPT_BOOLEAN('s', "show", &SHOW_OUTPUT, "show ngrams after processing"),
+        
+        OPT_GROUP("Other Options"),
         OPT_BOOLEAN('v', "verbose", &VERBOSE, "print some detail as progress is made"),
-        OPT_BOOLEAN('d', "debug", &DEBUG, "show debug info"),
         OPT_END(),
     };
 
@@ -346,7 +334,7 @@ int main(int argc, char const *argv[])
             fprintf(stderr, "Reading from STDIN\n");
         
         input_file = stdin;
-        iterate_over_ngrams(emit_ngram);
+        iterate_over_lines(emit_ngram);
         fclose(input_file);
     }
     else
@@ -358,7 +346,7 @@ int main(int argc, char const *argv[])
                 fprintf(stderr, "Reading file %s\n", text_file_path);
             
             input_file = open_file(text_file_path);
-            iterate_over_ngrams(emit_ngram);
+            iterate_over_lines(emit_ngram);
             fclose(input_file);
         }
     }

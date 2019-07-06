@@ -6,10 +6,9 @@
 #define true 1
 #define false 0
 
-extern int DEBUG;
 extern int VERBOSE;
 
 FILE* open_file(const char* path);
-void print_range(char *start_ptr, char *end_ptr);
+void print_range(char* start_ptr, size_t len);
 
 #endif

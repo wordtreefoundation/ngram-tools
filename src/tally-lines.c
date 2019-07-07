@@ -11,7 +11,7 @@
 
 #include "common.h"
 
-#define TRANSACTION_SIZE 100 * 1024 * 1024
+// #define TRANSACTION_SIZE 100 * 1024 * 1024
 
 tkvdb* db = NULL;
 tkvdb_params* params = NULL;
@@ -43,11 +43,12 @@ void open_db(const char *path)
         exit(EXIT_FAILURE);
     }
 
-    tkvdb_param_set(params, TKVDB_PARAM_TR_DYNALLOC, 0);
-    tkvdb_param_set(params, TKVDB_PARAM_TR_LIMIT, TRANSACTION_SIZE);
+    // tkvdb_param_set(params, TKVDB_PARAM_TR_DYNALLOC, 0);
+    // tkvdb_param_set(params, TKVDB_PARAM_TR_LIMIT, TRANSACTION_SIZE);
     tkvdb_param_set(params, TKVDB_PARAM_ALIGNVAL, sizeof(uint64_t));
 
     transaction = tkvdb_tr_create(db, params);
+	  tkvdb_params_free(params);
 }
 
 void close_db()
@@ -141,12 +142,28 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
         // Edit value in-place
         (*(uint64_t *)value.data) += count;
     }
+    else if (result == TKVDB_ENOMEM)
+    {
+        fprintf(stderr, "emit_ngram get ENOMEM\n");
+    }
     else
     {
         // This is the first-ever value for this key
         value.data = (uint64_t *)&count;
         // Add new key-value pair
-        transaction->put(transaction, &key, &value);
+        result = transaction->put(transaction, &key, &value);
+        if (result == TKVDB_ENOMEM) {
+            /* transaction buffer overflow */
+            commit_transaction();
+            begin_transaction();
+
+            /* try again */
+            result = transaction->put(transaction, &key, &value);
+        }
+        if (result != TKVDB_OK)
+        {
+            fprintf(stderr, "emit_ngram put error: %d\n", (int)result);
+        }
     }
 
     total_ngrams_emitted++;
@@ -157,31 +174,66 @@ void dump_database(void)
     begin_transaction();
     create_cursor();
 
-    char *key;
+    char word[32767];
+    char* key;
     size_t key_len;
     uint64_t val;
 
     TKVDB_RES rc = cursor->first(cursor);
-    if (rc == TKVDB_EMPTY)
-    {
-        fprintf(stderr, "No results to show\n");
-    }
-    else if (rc != TKVDB_OK)
-    {
-        fprintf(stderr, "Can't show results: error %d\n", (int)rc);
-    }
-    while (rc == TKVDB_OK)
-    {
-        key = cursor->key(cursor);
-        key_len = cursor->keysize(cursor);
-        val = *(uint64_t *)cursor->val(cursor);
 
-        printf("%7" PRId64 " ", val);
-        fwrite(key, sizeof(char), key_len, stdout);
-        putc('\n', stdout);
+    int iter = 0;
+    while(true) {
+    		tkvdb_datum dtk;
 
-        rc = cursor->next(cursor);
+        while (rc == TKVDB_OK) {
+            key = cursor->key(cursor);
+            key_len = cursor->keysize(cursor);
+            val = *((uint64_t *)cursor->val(cursor));
+
+            fprintf(stdout, "%7" PRId64 " ", val);
+            fwrite(key, sizeof(char), key_len, stdout);
+            putc('\n', stdout);
+
+
+            /* store key in case of TKVDB_ENOMEM */
+            dtk.data = word;
+            dtk.size = key_len;
+            memcpy(word, key, key_len > sizeof(word) ? sizeof(word) : key_len);
+
+            rc = cursor->next(cursor);
+            iter++;
+        }
+
+        if (rc == TKVDB_ENOMEM)
+        {
+            /* transaction buffer overflow */
+            #ifdef DEBUG
+            fprintf(stderr, "transaction buffer overflow\n");
+            #endif
+
+            /* reset transaction */
+            transaction->rollback(transaction);
+            transaction->begin(transaction);
+
+            /* and start from last seen key */
+            rc = cursor->seek(cursor, &dtk, TKVDB_SEEK_EQ);
+            if (rc != TKVDB_OK) {
+                fprintf(stderr, "seek() failed with code %d\n", rc);
+                exit(EXIT_FAILURE);
+            }
+
+            rc = cursor->next(cursor);
+        }
+        else
+        {
+            /* probably the end of data */
+            break;
+        }
     }
+
+    #ifdef DEBUG
+    fprintf(stderr, "dump_database result: %d (after %d iterations)\n", (int)rc, iter);
+    #endif
 
     free_cursor();
     // commit_transaction();

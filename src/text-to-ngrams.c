@@ -20,14 +20,14 @@ int WORDS_PER_NGRAM = 1;
 int total_ngrams_emitted = 0;
 int total_file_size = 0;
 
-void print_ngram(char* start_ptr, size_t len, size_t index)
+void print_ngram(char *start_ptr, size_t len, size_t index)
 {
-    #pragma unused(index)
+#pragma unused(index)
     print_range(start_ptr, len);
 
-    #ifdef DEBUG
+#ifdef DEBUG
     fprintf(stderr, "%zu\n", index);
-    #endif
+#endif
 
     // Count the ngram in memory
     total_ngrams_emitted++;
@@ -82,6 +82,6 @@ int main(int argc, char const *argv[])
 
     if (VERBOSE)
         fprintf(stderr, "  ngrams emitted: %d\n", total_ngrams_emitted);
-    
+
     return 0;
 }

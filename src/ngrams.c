@@ -99,9 +99,9 @@ size_t text_clean_cstr(char *text)
  *     size_t index: the iteration number of the ngram, relative to the whole loop
  */
 void for_each_ngram_of_file(
-    FILE* input_file,
+    FILE *input_file,
     int ngram_size,
-    void (*on_ngram)(char*, size_t, size_t))
+    void (*on_ngram)(char *, size_t, size_t))
 {
     char *content = NULL;
     size_t len = 0;
@@ -115,16 +115,16 @@ void for_each_ngram_of_file(
 
     if (result == READALL_OK)
     {
-        #ifdef DEBUG
+#ifdef DEBUG
         printf("FILE READ SUCCESSFUL\n");
-        #endif
+#endif
 
         len = text_clean_cstr(content);
         content[len] = '\0';
 
-        #ifdef DEBUG
+#ifdef DEBUG
         printf("%s\n", content);
-        #endif
+#endif
 
         int iter = 0;
         int word_count = 0;
@@ -144,10 +144,9 @@ void for_each_ngram_of_file(
                     {
                         const size_t ngram_length = read - word_boundary[0];
                         on_ngram(
-                          word_boundary[0],
-                          ngram_length - 1,
-                          iter++
-                        );
+                            word_boundary[0],
+                            ngram_length - 1,
+                            iter++);
                     }
 
                     for (int i = 0; i < word_count; i++)

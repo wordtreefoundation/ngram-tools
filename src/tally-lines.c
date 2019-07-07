@@ -13,13 +13,13 @@
 
 // #define TRANSACTION_SIZE 100 * 1024 * 1024
 
-tkvdb* db = NULL;
-tkvdb_params* params = NULL;
-tkvdb_tr* transaction = NULL;
-tkvdb_cursor* cursor = NULL;
-const char* db_storage_path = NULL;
+tkvdb *db = NULL;
+tkvdb_params *params = NULL;
+tkvdb_tr *transaction = NULL;
+tkvdb_cursor *cursor = NULL;
+const char *db_storage_path = NULL;
 
-FILE* input_file;
+FILE *input_file;
 
 int SHOW_OUTPUT = false;
 int COUNT = false;
@@ -36,9 +36,10 @@ void open_db(const char *path)
     {
         db = tkvdb_open(path, NULL);
     }
-    
-  	params = tkvdb_params_create();
-	  if (!params) {
+
+    params = tkvdb_params_create();
+    if (!params)
+    {
         fprintf(stderr, "Can't create database parameters\n");
         exit(EXIT_FAILURE);
     }
@@ -48,7 +49,7 @@ void open_db(const char *path)
     tkvdb_param_set(params, TKVDB_PARAM_ALIGNVAL, sizeof(uint64_t));
 
     transaction = tkvdb_tr_create(db, params);
-	  tkvdb_params_free(params);
+    tkvdb_params_free(params);
 }
 
 void close_db()
@@ -63,17 +64,18 @@ void close_db()
 
 void begin_transaction()
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     fprintf(stderr, "begin_transaction()\n");
-    #endif
+#endif
     transaction->begin(transaction);
 }
 
 void commit_transaction()
 {
-    #ifdef DEBUG
-    if (DEBUG) fprintf(stderr, "commit_transaction()\n");
-    #endif
+#ifdef DEBUG
+    if (DEBUG)
+        fprintf(stderr, "commit_transaction()\n");
+#endif
     TKVDB_RES rc = transaction->commit(transaction);
     if (rc != TKVDB_OK)
     {
@@ -85,10 +87,10 @@ void commit_transaction()
 
 void create_cursor()
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     fprintf(stderr, "create_cursor()\n");
-    #endif
-    
+#endif
+
     cursor = tkvdb_cursor_create(transaction);
     if (!cursor)
     {
@@ -100,9 +102,9 @@ void create_cursor()
 
 void free_cursor()
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     fprintf(stderr, "free_cursor()\n");
-    #endif
+#endif
     cursor->free(cursor);
 }
 
@@ -112,13 +114,13 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
     if (len == 0 || count == 0)
         return;
 
-    #ifdef DEBUG
+#ifdef DEBUG
     {
         putchar(' ');
         putchar(' ');
         print_range(start_ptr, len);
     }
-    #endif
+#endif
 
     tkvdb_datum key, value;
     TKVDB_RES result;
@@ -152,7 +154,8 @@ void emit_ngram(char *start_ptr, size_t len, uint64_t count)
         value.data = (uint64_t *)&count;
         // Add new key-value pair
         result = transaction->put(transaction, &key, &value);
-        if (result == TKVDB_ENOMEM) {
+        if (result == TKVDB_ENOMEM)
+        {
             /* transaction buffer overflow */
             commit_transaction();
             begin_transaction();
@@ -175,25 +178,26 @@ void dump_database(void)
     create_cursor();
 
     char word[32767];
-    char* key;
+    char *key;
     size_t key_len;
     uint64_t val;
 
     TKVDB_RES rc = cursor->first(cursor);
 
     int iter = 0;
-    while(true) {
-    		tkvdb_datum dtk;
+    while (true)
+    {
+        tkvdb_datum dtk;
 
-        while (rc == TKVDB_OK) {
+        while (rc == TKVDB_OK)
+        {
             key = cursor->key(cursor);
             key_len = cursor->keysize(cursor);
             val = *((uint64_t *)cursor->val(cursor));
 
-            fprintf(stdout, "%7" PRId64 " ", val);
+            fprintf(stdout, "%9" PRId64 "\t", val);
             fwrite(key, sizeof(char), key_len, stdout);
             putc('\n', stdout);
-
 
             /* store key in case of TKVDB_ENOMEM */
             dtk.data = word;
@@ -206,10 +210,10 @@ void dump_database(void)
 
         if (rc == TKVDB_ENOMEM)
         {
-            /* transaction buffer overflow */
-            #ifdef DEBUG
+/* transaction buffer overflow */
+#ifdef DEBUG
             fprintf(stderr, "transaction buffer overflow\n");
-            #endif
+#endif
 
             /* reset transaction */
             transaction->rollback(transaction);
@@ -217,7 +221,8 @@ void dump_database(void)
 
             /* and start from last seen key */
             rc = cursor->seek(cursor, &dtk, TKVDB_SEEK_EQ);
-            if (rc != TKVDB_OK) {
+            if (rc != TKVDB_OK)
+            {
                 fprintf(stderr, "seek() failed with code %d\n", rc);
                 exit(EXIT_FAILURE);
             }
@@ -231,15 +236,15 @@ void dump_database(void)
         }
     }
 
-    #ifdef DEBUG
+#ifdef DEBUG
     fprintf(stderr, "dump_database result: %d (after %d iterations)\n", (int)rc, iter);
-    #endif
+#endif
 
     free_cursor();
     // commit_transaction();
 }
 
-void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
+void iterate_over_lines(void (*each_ngram)(char *, size_t, uint64_t))
 {
     char *line = NULL;
     size_t len = 0;
@@ -248,7 +253,7 @@ void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
     char *first_non_white_space;
     char *whitespace_after;
     uint64_t tally;
-    
+
     while ((read = getline(&line, &len, input_file)) != -1)
     {
         // Remove newline at end of line, if present
@@ -270,7 +275,7 @@ void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
         {
             // We're expecting an integer, find out where its digits end
             while (*whitespace_after != ' ' &&
-                  *whitespace_after != '\t')
+                   *whitespace_after != '\t')
             {
                 if (*whitespace_after == '\0')
                     break;
@@ -280,17 +285,17 @@ void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
 
         if (*first_non_white_space == '\0' || *whitespace_after == '\0')
         {
-            #ifdef DEBUG
+#ifdef DEBUG
             fprintf(stderr, "  skipping line: %s\n", line);
-            #endif
+#endif
         }
         else
         {
             if (*whitespace_after == '\0')
             {
-                #ifdef DEBUG
+#ifdef DEBUG
                 fprintf(stderr, "  skipping line without ngram: %s\n", line);
-                #endif
+#endif
             }
             else
             {
@@ -313,16 +318,16 @@ void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
                     tally = (uint64_t)num;
                 }
 
-                #ifdef DEBUG
+#ifdef DEBUG
                 fprintf(stderr, "  tally: %" PRId64 "\n", tally);
-                #endif
+#endif
 
                 if (!COUNT)
                 {
                     // Skip whitespace between the number an the text (ngram)
                     whitespace_after++;
                     while (*whitespace_after == ' ' ||
-                          *whitespace_after == '\t')
+                           *whitespace_after == '\t')
                     {
                         if (*whitespace_after == '\0')
                             break;
@@ -333,9 +338,9 @@ void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
                 if (*whitespace_after != '\0')
                 {
                     size_t skipped = (size_t)(whitespace_after - line);
-                    #ifdef DEBUG
+#ifdef DEBUG
                     fprintf(stderr, "  ngram: %s, skipped: %zu\n", whitespace_after, skipped);
-                    #endif
+#endif
                     each_ngram(whitespace_after, read - skipped, tally);
                 }
             }
@@ -343,7 +348,6 @@ void iterate_over_lines(void(*each_ngram)(char*, size_t, uint64_t))
     }
     if (line)
         free(line);
-
 }
 
 static const char *const usage[] = {
@@ -360,14 +364,14 @@ int main(int argc, char const *argv[])
         OPT_STRING('p', "persist", &db_storage_path, "on-disk key-value storage file (optional)"),
         OPT_BOOLEAN('c', "count", &COUNT, "count occurrences (no integer column expected)"),
         OPT_BOOLEAN('s', "show", &SHOW_OUTPUT, "show ngrams after processing"),
-        
+
         OPT_GROUP("Other Options"),
         OPT_BOOLEAN('v', "verbose", &VERBOSE, "print some detail as progress is made"),
         OPT_END(),
     };
 
     if (db_storage_path == NULL)
-      SHOW_OUTPUT = true;
+        SHOW_OUTPUT = true;
 
     struct argparse argparse;
     argparse_init(&argparse, options, usage, 0);
@@ -383,7 +387,7 @@ int main(int argc, char const *argv[])
     {
         if (VERBOSE)
             fprintf(stderr, "Reading from STDIN\n");
-        
+
         input_file = stdin;
         iterate_over_lines(emit_ngram);
         fclose(input_file);
@@ -395,7 +399,7 @@ int main(int argc, char const *argv[])
             const char *text_file_path = argv[i];
             if (VERBOSE)
                 fprintf(stderr, "Reading file %s\n", text_file_path);
-            
+
             input_file = open_file(text_file_path);
             iterate_over_lines(emit_ngram);
             fclose(input_file);
@@ -404,7 +408,8 @@ int main(int argc, char const *argv[])
 
     if (SHOW_OUTPUT)
     {
-        if (VERBOSE) fprintf(stderr, "Showing results\n");
+        if (VERBOSE)
+            fprintf(stderr, "Showing results\n");
         dump_database();
     }
 

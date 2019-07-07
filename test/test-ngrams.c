@@ -5,9 +5,6 @@
 
 #define STORY_PATH "test/fixtures/story.txt"
 
-int DEBUG = false;
-int VERBOSE = false;
-
 void check_each_story_2gram(char* start_ptr, size_t len, size_t index)
 {
   const char* expected_results[] = {

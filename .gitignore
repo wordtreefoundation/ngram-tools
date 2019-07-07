@@ -2,4 +2,5 @@
 bin/
 *.dSYM
 .vscode
+library/
 

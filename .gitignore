@@ -4,3 +4,7 @@ bin/
 .vscode
 library/
 
+test/test-ngrams
+tally-lines
+text-to-ngrams
+

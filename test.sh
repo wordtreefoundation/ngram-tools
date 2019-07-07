@@ -32,5 +32,11 @@ echo -e "${GREEN_ARROW} ${UNDERLINE}Running integration tests${RESTORE}"
     echo -e "\x1B[31mFAILED: tally results not as expected\x1B[0m"
     exit 1
   }
+./tally-lines -c test/fixtures/bom.4grams \
+  | diff -b test/fixtures/bom.tallied.4grams - \
+  || {
+    echo -e "\x1B[31mFAILED: tally results for large file not as expected\x1B[0m"
+    exit 1
+  }
 echo -e "${GREEN}SUCCESS:${RESTORE} All integration tests have passed."
 echo; echo

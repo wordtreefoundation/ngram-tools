@@ -52,19 +52,19 @@ while true; do
     time parallel -a "$TOC_FILE" \
         --progress \
         -j$(nproc) \
-        -N16 \
+        -N256 \
         $DIR/merge.sh {} \
         '|' $DIR/sum-consecutive.sh \
         '>' $OUTDIR/{#}$SUFFIX
 
     # Clean up directories as we go, because data can get Very Big
-    if (( "$ROUND" > "1" )); then
-        if [ -d "$LIBRARY_PREV" ]; then
-            if [[ "$LIBRARY_PREV" == round* ]]; then
-                rm -rf "$OUTDIR_PREV"
-            fi
-        fi
-    fi
+    # if (( "$ROUND" > "1" )); then
+    #     if [ -d "$LIBRARY_PREV" ]; then
+    #         if [[ "$LIBRARY_PREV" == round* ]]; then
+    #             rm -rf "$OUTDIR_PREV"
+    #         fi
+    #     fi
+    # fi
 
     LIBRARY_PREV="$LIBRARY"
     LIBRARY="$OUTDIR"

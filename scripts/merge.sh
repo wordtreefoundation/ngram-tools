@@ -17,8 +17,9 @@
 #        2       a adopt for the
 #
 # Params:
-# -m: tell sort to assume input is in sorted order and merge instead of sort
-# -k2: use the second column as the merge criterion
+# LC_ALL=C: use "C" language sort order (as opposed to locale)
 # -t$'\t': use tabs as column separator (instead of space, which is default)
+# --merge: tell sort to assume input is in sorted order and merge instead of sort
+# --key=2,2: use the second column as the merge criterion, merge alphabetically
 
-sort -mk2 -t$'\t' "$@"
+LC_ALL=C sort -t$'\t' --merge --key=2,2 "$@"

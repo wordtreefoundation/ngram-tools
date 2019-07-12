@@ -1,13 +1,5 @@
 #!/bin/bash
 
-function merge() {
-    sort -mk2 -t$'\t' "$@"
-}
-
-function sum() {
-    awk -F $'\t' 'NF>1 && $2!=p{ if (NR>1) printf "%9d\t%s\n", s, p; p=$2; s=0} {s+=$1} END{printf "%9d\t%s\n", s, p}' "$0"
-}
-
 LIBRARY=${1:-../library}
 SUFFIX=${2:-.tallied}
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -29,7 +21,7 @@ ROUND=1
 while true; do
     echo "Round ${ROUND}:"
 
-    OUTDIR=$(printf "round%03d" $ROUND)
+    OUTDIR=$(printf "r%03d" $ROUND)
     mkdir -p "$OUTDIR"
 
     TOC_PREV="$TOC_FILE"
@@ -52,7 +44,7 @@ while true; do
     time parallel -a "$TOC_FILE" \
         --progress \
         -j$(nproc) \
-        -N256 \
+        --xargs \
         $DIR/merge.sh {} \
         '|' $DIR/sum-consecutive.sh \
         '>' $OUTDIR/{#}$SUFFIX

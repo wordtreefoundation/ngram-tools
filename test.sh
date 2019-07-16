@@ -25,18 +25,18 @@ echo; echo
 
 echo -e "${GREEN_ARROW} ${UNDERLINE}Running integration tests${RESTORE}"
 echo -e "Test full tally on story3.txt"
-./text-to-ngrams -n 2 test/fixtures/story3.txt \
+./text-to-ngrams -n2 test/fixtures/story3.txt \
   | ./tally-lines -c \
-  | sort -bgr \
-  | diff -b test/fixtures/story3.2grams - \
+  | sort -t$'\t' -bgr \
+  | diff -b test/fixtures/story3.2grams.tallied - \
   || {
     echo -e "\x1B[31mFAILED: tally results not as expected\x1B[0m"
     exit 1
   }
 echo -e "Test large file bom.4grams"
 ./tally-lines -c test/fixtures/bom.4grams \
-  | sort -bgr \
-  | diff -qw test/fixtures/bom.tallied.4grams - \
+  | sort -t$'\t' -bgr \
+  | diff -qw test/fixtures/bom.4grams.tallied - \
   || {
     echo -e "\x1B[31mFAILED: tally results for large file not as expected\x1B[0m"
     echo "Run the following to see diff:"

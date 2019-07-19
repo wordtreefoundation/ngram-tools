@@ -8,3 +8,11 @@ test/test-ngrams
 tally-lines
 text-to-ngrams
 
+
+
+#Added by cargo
+#
+#already existing elements are commented out
+
+/target
+**/*.rs.bk

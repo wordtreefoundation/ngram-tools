@@ -42,7 +42,7 @@ pub fn normalize_ascii(text: &Vec<u8>) -> Vec<u8> {
         //     t1,
         //     t2
         // );
-        
+
         match (t1, t2) {
             (CharType::Skip, _) => {
                 t1 = t2;

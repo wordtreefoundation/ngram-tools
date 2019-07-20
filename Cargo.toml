@@ -7,3 +7,5 @@ edition = "2018"
 [dependencies]
 gumdrop = "0.6"
 # log = "0.4.7"
+grep-cli = "0.1"
+termcolor = "*"

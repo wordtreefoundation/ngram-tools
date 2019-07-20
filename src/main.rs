@@ -9,6 +9,7 @@ extern crate termcolor;
 use gumdrop::Options;
 use std::collections::HashMap;
 use std::io;
+use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Write;
 use std::str;
@@ -79,6 +80,10 @@ fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) {
     stdout.write(&[b'\n']).unwrap();
 }
 
+fn error(msg: String) -> Result<(), io::Error> {
+    return Err(io::Error::new(ErrorKind::Other, msg));
+}
+
 enum Sort {
     Alphabetic,
     Numeric,
@@ -96,11 +101,10 @@ fn main() -> Result<(), io::Error> {
         Some("a") | Some("alphabetic") | Some("") => Some(Sort::Alphabetic),
         Some("n") | Some("numeric") => Some(Sort::Numeric),
         Some(invalid_sort) => {
-            eprintln!(
+            return error(format!(
                 "Unable to sort by {}. Use 'a' for alphabetic or 'n' for numeric.",
                 invalid_sort
-            );
-            return Ok(());
+            ));
         }
         None => None,
     };

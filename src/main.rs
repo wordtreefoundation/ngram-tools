@@ -7,6 +7,9 @@ extern crate grep_cli;
 extern crate termcolor;
 
 use gumdrop::Options;
+
+use std::fs::File;
+
 use std::collections::HashMap;
 use std::io;
 use std::io::ErrorKind;
@@ -27,14 +30,14 @@ struct GramsOptions {
     #[options(short = "n", help = "number of words per n-gram")]
     number: Option<i32>,
 
+    #[options(help = "sort tallied output: a=alphabetic, n=numeric")]
+    sort: Option<String>,
+
     #[options(no_short, help = "print normalized ascii and exit")]
     normalized: bool,
 
     #[options(no_short, help = "print sliding window of ngrams and exit")]
-    sliding: bool,
-
-    #[options(help = "sort tallied output: a=alphabetic, n=numeric")]
-    sort: Option<String>,
+    windowed: bool,
 }
 
 impl Default for GramsOptions {
@@ -44,7 +47,7 @@ impl Default for GramsOptions {
             help: false,
             number: None,
             normalized: false,
-            sliding: false,
+            windowed: false,
             sort: None,
         }
     }
@@ -80,6 +83,59 @@ fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) {
     stdout.write(&[b'\n']).unwrap();
 }
 
+fn text_pipeline(text: &Vec<u8>, window_size: usize, sort: &Option<Sort>, normalized_only: bool, windowed_only: bool) -> Result<(), io::Error> {
+    let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
+
+    let result = normalize::normalize_ascii(&text);
+
+    if normalized_only {
+        stdout.write(&result)?;
+        return Ok(());
+    }
+
+    if windowed_only {
+        sliding_window(&result, window_size, move |ngram| {
+            print_ngram(&mut stdout, ngram)
+        });
+        return Ok(());
+    }
+
+    let mut tally: HashMap<String, usize> = HashMap::new();
+    sliding_window(&result, window_size, |ngram| {
+        let mut key: String = String::new();
+        for (i, word) in ngram.iter().enumerate() {
+            if i > 0 {
+                key.push(' ');
+            }
+            key.push_str(str::from_utf8(word).unwrap());
+        }
+        let count = tally.entry(key).or_insert(0);
+        *count += 1;
+    });
+
+    let mut pairs: Vec<(&String, &usize)>;
+    match sort {
+        Some(sort_order) => {
+            pairs = tally.iter().collect();
+            match sort_order {
+                Sort::Alphabetic => pairs.sort_by(|a, b| a.0.cmp(b.0)),
+                Sort::Numeric => pairs.sort_by(|a, b| b.1.cmp(a.1)),
+            }
+
+            for (key, value) in pairs {
+                stdout.write(format!("{:9}\t{}\n", value, key).as_bytes())?;
+            }
+        }
+        None => {
+            for (key, value) in tally {
+                stdout.write(format!("{:9}\t{}\n", value, key).as_bytes())?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn error(msg: String) -> Result<(), io::Error> {
     return Err(io::Error::new(ErrorKind::Other, msg));
 }
@@ -109,56 +165,17 @@ fn main() -> Result<(), io::Error> {
         None => None,
     };
 
+    let mut buffer: Vec<u8> = Vec::new();
     if opts.files.len() == 0 {
         // Read from STDIN
-        let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
-
-        let mut buffer: Vec<u8> = Vec::new();
         io::stdin().read_to_end(&mut buffer).unwrap();
-        let result = normalize::normalize_ascii(&buffer);
-        if opts.normalized {
-            stdout.write(&result)?;
-            return Ok(());
-        }
-
-        if opts.sliding {
-            sliding_window(&result, number, move |ngram| {
-                print_ngram(&mut stdout, ngram)
-            });
-            return Ok(());
-        }
-
-        let mut tally: HashMap<String, usize> = HashMap::new();
-        sliding_window(&result, number, |ngram| {
-            let mut key: String = String::new();
-            for (i, word) in ngram.iter().enumerate() {
-                if i > 0 {
-                    key.push(' ');
-                }
-                key.push_str(str::from_utf8(word).unwrap());
-            }
-            let count = tally.entry(key).or_insert(0);
-            *count += 1;
-        });
-
-        let mut pairs: Vec<(&String, &usize)>;
-        match sort {
-            Some(sort_order) => {
-                pairs = tally.iter().collect();
-                match sort_order {
-                    Sort::Alphabetic => pairs.sort_by(|a, b| a.0.cmp(b.0)),
-                    Sort::Numeric => pairs.sort_by(|a, b| b.1.cmp(a.1)),
-                }
-
-                for (key, value) in pairs {
-                    stdout.write(format!("{:9}\t{}\n", value, key).as_bytes())?;
-                }
-            }
-            None => {
-                for (key, value) in tally {
-                    stdout.write(format!("{:9}\t{}\n", value, key).as_bytes())?;
-                }
-            }
+        text_pipeline(&buffer, number, &sort, opts.normalized, opts.windowed)?;
+    } else {
+        // Read from files
+        for filename in opts.files {
+            let mut file = File::open(&filename).expect("Error opening File");
+            file.read_to_end(&mut buffer).unwrap();
+            text_pipeline(&buffer, number, &sort, opts.normalized, opts.windowed)?;
         }
     }
 

@@ -6,6 +6,10 @@ extern crate gumdrop;
 extern crate grep_cli;
 extern crate termcolor;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+
 use gumdrop::Options;
 
 use std::fs::File;
@@ -14,10 +18,9 @@ use std::collections::HashMap;
 use std::io;
 use std::io::ErrorKind;
 use std::io::Read;
-use std::io::Write;
-use std::str;
 
-mod normalize;
+mod pipeline;
+mod common;
 
 #[derive(Debug, Options)]
 struct GramsOptions {
@@ -53,107 +56,8 @@ impl Default for GramsOptions {
     }
 }
 
-fn sliding_window<F>(text: &Vec<u8>, number_words: usize, mut action: F)
-where
-    F: FnMut(&[&[u8]]),
-{
-    for sentence in text.split(|c| c == &b'.') {
-        if sentence.len() > 0 {
-            let words: Vec<&[u8]> = sentence.split(|c| c == &b' ').collect();
-            for ngram in words.windows(number_words) {
-                action(ngram);
-            }
-        }
-    }
-}
-
-fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) {
-    let mut iter = ngram.iter();
-    match iter.next() {
-        Some(word) => {
-            stdout.write(word).unwrap();
-            ()
-        }
-        None => return,
-    }
-    while let Some(word) = iter.next() {
-        stdout.write(&[b' ']).unwrap();
-        stdout.write(word).unwrap();
-    }
-    stdout.write(&[b'\n']).unwrap();
-}
-
-fn text_pipeline(
-    text: &Vec<u8>,
-    window_size: usize,
-    tally: &mut HashMap<String, usize>,
-    normalized_only: bool,
-    windowed_only: bool,
-) -> Result<(), io::Error> {
-    let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
-
-    let result = normalize::normalize_ascii(&text);
-
-    if normalized_only {
-        stdout.write(&result)?;
-        return Ok(());
-    }
-
-    if windowed_only {
-        sliding_window(&result, window_size, move |ngram| {
-            print_ngram(&mut stdout, ngram)
-        });
-        return Ok(());
-    }
-
-    sliding_window(&result, window_size, |ngram| {
-        let mut key: String = String::new();
-        for (i, word) in ngram.iter().enumerate() {
-            if i > 0 {
-                key.push(' ');
-            }
-            key.push_str(str::from_utf8(word).unwrap());
-        }
-        let count = tally.entry(key).or_insert(0);
-        *count += 1;
-    });
-
-    Ok(())
-}
-
-fn print_tally(tally: &HashMap<String, usize>, sort: &Option<Sort>) -> Result<(), io::Error> {
-    let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
-
-    let mut pairs: Vec<(&String, &usize)>;
-    match sort {
-        Some(sort_order) => {
-            pairs = tally.iter().collect();
-            match sort_order {
-                Sort::Alphabetic => pairs.sort_by(|a, b| a.0.cmp(b.0)),
-                Sort::Numeric => pairs.sort_by(|a, b| b.1.cmp(a.1)),
-            }
-
-            for (key, value) in pairs {
-                stdout.write(format!("{:9}\t{}\n", value, key).as_bytes())?;
-            }
-        }
-        None => {
-            for (key, value) in tally {
-                stdout.write(format!("{:9}\t{}\n", value, key).as_bytes())?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
 fn error(msg: String) -> Result<(), io::Error> {
     return Err(io::Error::new(ErrorKind::Other, msg));
-}
-
-enum Sort {
-    Alphabetic,
-    Numeric,
 }
 
 fn main() -> Result<(), io::Error> {
@@ -164,9 +68,9 @@ fn main() -> Result<(), io::Error> {
         None => 1,
     };
 
-    let sort: Option<Sort> = match opts.sort.as_ref().map(|s| &s[..]) {
-        Some("a") | Some("alphabetic") | Some("") => Some(Sort::Alphabetic),
-        Some("n") | Some("numeric") => Some(Sort::Numeric),
+    let sort: Option<common::Sort> = match opts.sort.as_ref().map(|s| &s[..]) {
+        Some("a") | Some("alphabetic") | Some("") => Some(common::Sort::Alphabetic),
+        Some("n") | Some("numeric") => Some(common::Sort::Numeric),
         Some(invalid_sort) => {
             return error(format!(
                 "Unable to sort by {}. Use 'a' for alphabetic or 'n' for numeric.",
@@ -181,18 +85,18 @@ fn main() -> Result<(), io::Error> {
     if opts.files.len() == 0 {
         // Read from STDIN
         io::stdin().read_to_end(&mut buffer).unwrap();
-        text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+        pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
     } else {
         // Read from files
         for filename in opts.files {
             let mut file = File::open(&filename).expect("Error opening File");
             buffer.clear();
             file.read_to_end(&mut buffer).unwrap();
-            text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+            pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
         }
     }
 
-    print_tally(&tally, &sort)?;
+    pipeline::print_tally(&tally, &sort)?;
 
     Ok(())
 }

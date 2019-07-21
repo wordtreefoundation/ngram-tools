@@ -47,7 +47,7 @@ fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) -> Result
 pub fn text_pipeline(
     text: &Vec<u8>,
     window_size: usize,
-    tally: &mut HashMap<String, usize>,
+    tally: &mut HashMap<String, u32>,
     normalized_only: bool,
     windowed_only: bool,
 ) -> Result<(), io::Error> {
@@ -95,7 +95,7 @@ fn eprint_utf8_fallback(text: &[u8]) {
 pub fn read_tallied_input(
     text: &Vec<u8>,
     window_size: usize,
-    tally: &mut HashMap<String, usize>) -> Result<(), io::Error> {
+    tally: &mut HashMap<String, u32>) -> Result<(), io::Error> {
 
     for line in text.split(|c| c == &b'\n') {
         let pair: Vec<&[u8]> = line.split(|c| c == &b'\t').collect();
@@ -104,7 +104,7 @@ pub fn read_tallied_input(
                 Ok(key) => {
                     match str::from_utf8(pair[0]) {
                         Ok(value) => {
-                            match value.trim().parse::<usize>() {
+                            match value.trim().parse::<u32>() {
                                 Ok(v) => {
                                     let count = tally.entry(key.to_string()).or_insert(0);
                                     *count += v;
@@ -126,10 +126,10 @@ pub fn read_tallied_input(
     Ok(())
 }
 
-pub fn print_tally(tally: &HashMap<String, usize>, sort: &Option<Sort>) -> Result<(), io::Error> {
+pub fn print_tally(tally: &HashMap<String, u32>, sort: &Option<Sort>) -> Result<(), io::Error> {
     let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
 
-    let mut pairs: Vec<(&String, &usize)>;
+    let mut pairs: Vec<(&String, &u32)>;
     match sort {
         Some(sort_order) => {
             pairs = tally.iter().collect();

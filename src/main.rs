@@ -16,6 +16,8 @@ use std::io::ErrorKind;
 use std::io::Read;
 
 mod pipeline;
+mod server;
+mod client;
 mod common;
 
 #[derive(Debug, Options)]
@@ -35,6 +37,12 @@ struct GramsOptions {
     #[options(help = "read input as tallied n-gram, rather than raw text")]
     tallied_input: bool,
 
+    #[options(no_short, help = "server mode: serve tallied results when requested")]
+    server: bool,
+
+    #[options(no_short, help = "client mode: request tallied results")]
+    client: bool,
+
     #[options(no_short, help = "print normalized ascii and exit")]
     normalized: bool,
 
@@ -50,6 +58,8 @@ impl Default for GramsOptions {
             number: None,
             sort: None,
             tallied_input: false,
+            server: false,
+            client: false,
             normalized: false,
             windowed: false,
         }
@@ -62,6 +72,7 @@ fn error(msg: String) -> Result<(), io::Error> {
 
 fn main() -> Result<(), io::Error> {
     let opts: GramsOptions = GramsOptions::parse_args_default_or_exit();
+    let socket = "/tmp/ngramd.sock".to_string();
 
     let number: usize = match opts.number {
         Some(n) => n as usize,
@@ -79,9 +90,17 @@ fn main() -> Result<(), io::Error> {
         }
         None => None,
     };
+    
+    if opts.server && opts.client {
+        return error("Error: Can't be both a server and a client".to_string());
+    } else if opts.server {
+        eprintln!("Starting server... ({})", socket);
+    } else if opts.client {
+        eprintln!("Connecting to server...({})", socket);
+    }
 
     let mut buffer: Vec<u8> = Vec::new();
-    let mut tally: HashMap<String, usize> = HashMap::new();
+    let mut tally: HashMap<String, u32> = HashMap::new();
     if opts.files.len() == 0 {
         // Read from STDIN
         io::stdin().read_to_end(&mut buffer)?;
@@ -104,7 +123,15 @@ fn main() -> Result<(), io::Error> {
         }
     }
 
-    pipeline::print_tally(&tally, &sort)?;
+    if opts.server {
+        eprintln!("  -> serving {} ngrams", tally.len());
+        server::server(socket, &tally);
+    } else if opts.client {
+        eprintln!("  -> requesting ngrams");
+        client::client(socket, &tally);
+    } else {
+        pipeline::print_tally(&tally, &sort)?;
+    }
 
     Ok(())
 }

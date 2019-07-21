@@ -84,14 +84,14 @@ fn main() -> Result<(), io::Error> {
     let mut tally: HashMap<String, usize> = HashMap::new();
     if opts.files.len() == 0 {
         // Read from STDIN
-        io::stdin().read_to_end(&mut buffer).unwrap();
+        io::stdin().read_to_end(&mut buffer)?;
         pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
     } else {
         // Read from files
         for filename in opts.files {
             let mut file = File::open(&filename).expect("Error opening File");
             buffer.clear();
-            file.read_to_end(&mut buffer).unwrap();
+            file.read_to_end(&mut buffer)?;
             pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
         }
     }

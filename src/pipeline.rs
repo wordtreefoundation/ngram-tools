@@ -6,34 +6,38 @@ use std::str;
 mod normalize;
 use super::common::{Sort};
 
-fn sliding_window<F>(text: &Vec<u8>, number_words: usize, mut action: F)
+fn sliding_window<F>(text: &Vec<u8>, number_words: usize, mut action: F) -> Result<(), io::Error>
 where
-    F: FnMut(&[&[u8]]),
+    F: FnMut(&[&[u8]]) -> Result<(), io::Error>,
 {
     for sentence in text.split(|c| c == &b'.') {
         if sentence.len() > 0 {
             let words: Vec<&[u8]> = sentence.split(|c| c == &b' ').collect();
             for ngram in words.windows(number_words) {
-                action(ngram);
+                action(ngram)?;
             }
         }
     }
+
+    Ok(())
 }
 
-fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) {
+fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) -> Result<(), io::Error> {
     let mut iter = ngram.iter();
     match iter.next() {
         Some(word) => {
-            stdout.write(word).unwrap();
+            stdout.write(word)?;
             ()
         }
-        None => return,
+        None => return Ok(()),
     }
     while let Some(word) = iter.next() {
-        stdout.write(&[b' ']).unwrap();
-        stdout.write(word).unwrap();
+        stdout.write(&[b' '])?;
+        stdout.write(word)?;
     }
-    stdout.write(&[b'\n']).unwrap();
+    stdout.write(&[b'\n'])?;
+
+    Ok(())
 }
 
 pub fn text_pipeline(
@@ -54,8 +58,9 @@ pub fn text_pipeline(
 
     if windowed_only {
         sliding_window(&result, window_size, move |ngram| {
-            print_ngram(&mut stdout, ngram)
-        });
+            print_ngram(&mut stdout, ngram)?;
+            Ok(())
+        })?;
         return Ok(());
     }
 
@@ -69,7 +74,9 @@ pub fn text_pipeline(
         }
         let count = tally.entry(key).or_insert(0);
         *count += 1;
-    });
+
+        Ok(())
+    })?;
 
     Ok(())
 }

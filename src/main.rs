@@ -83,7 +83,13 @@ fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) {
     stdout.write(&[b'\n']).unwrap();
 }
 
-fn text_pipeline(text: &Vec<u8>, window_size: usize, sort: &Option<Sort>, normalized_only: bool, windowed_only: bool) -> Result<(), io::Error> {
+fn text_pipeline(
+    text: &Vec<u8>,
+    window_size: usize,
+    tally: &mut HashMap<String, usize>,
+    normalized_only: bool,
+    windowed_only: bool,
+) -> Result<(), io::Error> {
     let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
 
     let result = normalize::normalize_ascii(&text);
@@ -100,7 +106,6 @@ fn text_pipeline(text: &Vec<u8>, window_size: usize, sort: &Option<Sort>, normal
         return Ok(());
     }
 
-    let mut tally: HashMap<String, usize> = HashMap::new();
     sliding_window(&result, window_size, |ngram| {
         let mut key: String = String::new();
         for (i, word) in ngram.iter().enumerate() {
@@ -112,6 +117,12 @@ fn text_pipeline(text: &Vec<u8>, window_size: usize, sort: &Option<Sort>, normal
         let count = tally.entry(key).or_insert(0);
         *count += 1;
     });
+
+    Ok(())
+}
+
+fn print_tally(tally: &HashMap<String, usize>, sort: &Option<Sort>) -> Result<(), io::Error> {
+    let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
 
     let mut pairs: Vec<(&String, &usize)>;
     match sort {
@@ -166,18 +177,22 @@ fn main() -> Result<(), io::Error> {
     };
 
     let mut buffer: Vec<u8> = Vec::new();
+    let mut tally: HashMap<String, usize> = HashMap::new();
     if opts.files.len() == 0 {
         // Read from STDIN
         io::stdin().read_to_end(&mut buffer).unwrap();
-        text_pipeline(&buffer, number, &sort, opts.normalized, opts.windowed)?;
+        text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
     } else {
         // Read from files
         for filename in opts.files {
             let mut file = File::open(&filename).expect("Error opening File");
+            buffer.clear();
             file.read_to_end(&mut buffer).unwrap();
-            text_pipeline(&buffer, number, &sort, opts.normalized, opts.windowed)?;
+            text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
         }
     }
+
+    print_tally(&tally, &sort)?;
 
     Ok(())
 }

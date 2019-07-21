@@ -1,6 +1,0 @@
-[submodule "tkvdb"]
-	path = tkvdb
-	url = git@github.com:vmxdev/tkvdb.git
-[submodule "argparse"]
-	path = argparse
-	url = git@github.com:cofyc/argparse.git

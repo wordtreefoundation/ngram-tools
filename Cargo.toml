@@ -1,13 +1,14 @@
 [package]
-name = "ngram-tools"
-version = "0.1.0"
+name = "ngrams"
+description = "A fast command-line tool for analyzing ascii text as n-grams, by WordTree Foundation"
+version = "0.2.0"
 authors = ["Duane Johnson <duane.johnson@gmail.com>"]
+license = "MIT"
 edition = "2018"
 
 [dependencies]
 daemon-engine = "0.6"
 gumdrop = "0.6"
-# log = "0.4.7"
 grep-cli = "0.1"
 serde = "1.0"
 serde_derive = "1.0"

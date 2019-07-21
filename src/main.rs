@@ -2,10 +2,6 @@
 #[macro_use]
 extern crate gumdrop;
 
-// Use stdout from grep_cli because io::stdout() is slower (due to forced line buffering)
-extern crate grep_cli;
-extern crate termcolor;
-
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -36,6 +32,9 @@ struct GramsOptions {
     #[options(help = "sort tallied output: a=alphabetic, n=numeric")]
     sort: Option<String>,
 
+    #[options(help = "read input as tallied n-gram, rather than raw text")]
+    tallied_input: bool,
+
     #[options(no_short, help = "print normalized ascii and exit")]
     normalized: bool,
 
@@ -49,9 +48,10 @@ impl Default for GramsOptions {
             files: Vec::new(),
             help: false,
             number: None,
+            sort: None,
+            tallied_input: false,
             normalized: false,
             windowed: false,
-            sort: None,
         }
     }
 }
@@ -85,14 +85,22 @@ fn main() -> Result<(), io::Error> {
     if opts.files.len() == 0 {
         // Read from STDIN
         io::stdin().read_to_end(&mut buffer)?;
-        pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+        if opts.tallied_input { 
+            pipeline::read_tallied_input(&buffer, number, &mut tally)?;
+        } else {
+            pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+        }
     } else {
         // Read from files
         for filename in opts.files {
             let mut file = File::open(&filename).expect("Error opening File");
             buffer.clear();
             file.read_to_end(&mut buffer)?;
-            pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+            if opts.tallied_input { 
+                pipeline::read_tallied_input(&buffer, number, &mut tally)?;
+            } else {
+                pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+            }
         }
     }
 

@@ -3,6 +3,10 @@ use std::io::Write;
 use std::collections::HashMap;
 use std::str;
 
+// Use stdout from grep_cli because io::stdout() is slower (due to forced line buffering)
+extern crate grep_cli;
+extern crate termcolor;
+
 mod normalize;
 use super::common::{Sort};
 
@@ -77,6 +81,47 @@ pub fn text_pipeline(
 
         Ok(())
     })?;
+
+    Ok(())
+}
+
+fn eprint_utf8_fallback(text: &[u8]) {
+    match str::from_utf8(text) {
+        Ok(s) => eprintln!("{}", s.to_string()),
+        Err(_) => eprintln!("{:?}", text),
+    }
+}
+
+pub fn read_tallied_input(
+    text: &Vec<u8>,
+    window_size: usize,
+    tally: &mut HashMap<String, usize>) -> Result<(), io::Error> {
+
+    for line in text.split(|c| c == &b'\n') {
+        let pair: Vec<&[u8]> = line.split(|c| c == &b'\t').collect();
+        if pair.len() == 2 {
+            match str::from_utf8(pair[1]) {
+                Ok(key) => {
+                    match str::from_utf8(pair[0]) {
+                        Ok(value) => {
+                            match value.trim().parse::<usize>() {
+                                Ok(v) => {
+                                    let count = tally.entry(key.to_string()).or_insert(0);
+                                    *count += v;
+                                }
+                                Err(_e) => eprintln!("failed to parse tally for key {}: {}", key.to_string(), value.to_string())
+                            }
+                        }
+                        Err(_e) => eprintln!("failed to read tally for key {}: {:?}", key.to_string(), pair[0])
+                    }
+                },
+                Err(e) => {
+                    eprintln!("failed to read ascii key: {:?}", e);
+                    eprint_utf8_fallback(line);
+                }
+            }
+        }
+    }
 
     Ok(())
 }

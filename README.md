@@ -73,7 +73,7 @@ For advanced usage, you can also set `ngrams` up as a server, storing a large am
 Setting up the server looks like this:
 
 ```
-$ ./ngrams -t baseline.4grams.tallied
+$ ./ngrams --server -t baseline.4grams.tallied
 Server mode enabled (unix:/tmp/ngramd.sock)
   -> serving 17417138 ngrams
 ```

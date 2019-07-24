@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use varlink::{VarlinkService};
 use super::org_wordtree_ngrams;
-use super::org_wordtree_ngrams::{VarlinkInterface, Call_Ping, Call_Lookup, Call_StopServing};
+use super::org_wordtree_ngrams::{VarlinkInterface, Call_Ping, Call_Lookup, Call_LookupAll};
 use super::common::{Tally};
 
 struct WordtreeNgrams {
@@ -24,9 +24,14 @@ impl VarlinkInterface for WordtreeNgrams {
         })
     }
 
-    fn stop_serving(&self, call: &mut Call_StopServing) -> varlink::Result<()> {
-        call.reply()?;
-        Err(varlink::ErrorKind::ConnectionClosed.into())
+    fn lookup_all(&self, call: &mut Call_LookupAll, ngrams: Vec<String>) -> varlink::Result<()> {
+        // eprintln!("Lookup called.");
+        let tally = self.tally.read().unwrap();
+        let values = ngrams.iter().map(|ngram| match tally.get(ngram) {
+            Some(value) => *value,
+            None => 0
+        }).collect();
+        call.reply(values)
     }
 }
 

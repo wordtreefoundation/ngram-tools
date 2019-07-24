@@ -14,13 +14,21 @@ pub fn run_client(addr: &str, tally: Arc<RwLock<Tally>>) -> Result<()> {
     let mut score: f64 = 0.0;
 
     let tally = tally.read().unwrap();
-    for (key, value) in tally.iter() {
-        let reply = iface.lookup(key.into()).call()?;
-        if reply.tally > 0 {
-            score += (*value as f64) / (reply.tally as f64);
+    let keys1: Vec<String> = tally.iter().map(|(k, _v)| k.clone() ).collect();
+    let keys2: Vec<String> = tally.iter().map(|(k, _v)| k.clone() ).collect();
+    let reply = iface.lookup_all(keys1).call()?;
+
+    for (key, baseline) in keys2.iter().zip(reply.tallies.iter()) {
+        let baseline = *baseline as f64;
+        if baseline > 0.0 {
+            let value = match tally.get(key) {
+                Some(v) => *v,
+                None => 0
+            };
+            score += (value as f64) / (baseline as f64)
         }
-        // eprintln!("{}: {:?} of {}", key, value, reply.tally);
     }
+    
     println!("Score: {:.*}", 9, score);
 
     Ok(())

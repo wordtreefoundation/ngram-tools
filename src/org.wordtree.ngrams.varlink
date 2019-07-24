@@ -6,8 +6,8 @@ method Ping(ping: string) -> (pong: string)
 # Looks up an ngram and returns its tally
 method Lookup(ngram: string) -> (tally: int)
 
-# Stop serving
-method StopServing() -> ()
+# Looks up a set of ngrams and returns their tallies
+method LookupAll(ngrams: []string) -> (tallies: []int)
 
 # Something failed
 error NgramsError (reason: string)

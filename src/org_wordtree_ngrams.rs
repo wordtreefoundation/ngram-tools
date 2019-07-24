@@ -150,6 +150,21 @@ pub trait Call_Lookup: VarlinkCallError {
 }
 impl<'a> Call_Lookup for varlink::Call<'a> {}
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct LookupAll_Reply {
+    pub r#tallies: Vec<i64>,
+}
+impl varlink::VarlinkReply for LookupAll_Reply {}
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct LookupAll_Args {
+    pub r#ngrams: Vec<String>,
+}
+pub trait Call_LookupAll: VarlinkCallError {
+    fn reply(&mut self, r#tallies: Vec<i64>) -> varlink::Result<()> {
+        self.reply_struct(LookupAll_Reply { r#tallies }.into())
+    }
+}
+impl<'a> Call_LookupAll for varlink::Call<'a> {}
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Ping_Reply {
     pub r#pong: String,
 }
@@ -164,21 +179,10 @@ pub trait Call_Ping: VarlinkCallError {
     }
 }
 impl<'a> Call_Ping for varlink::Call<'a> {}
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct StopServing_Reply {}
-impl varlink::VarlinkReply for StopServing_Reply {}
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct StopServing_Args {}
-pub trait Call_StopServing: VarlinkCallError {
-    fn reply(&mut self) -> varlink::Result<()> {
-        self.reply_struct(varlink::Reply::parameters(None))
-    }
-}
-impl<'a> Call_StopServing for varlink::Call<'a> {}
 pub trait VarlinkInterface {
     fn lookup(&self, call: &mut Call_Lookup, r#ngram: String) -> varlink::Result<()>;
+    fn lookup_all(&self, call: &mut Call_LookupAll, r#ngrams: Vec<String>) -> varlink::Result<()>;
     fn ping(&self, call: &mut Call_Ping, r#ping: String) -> varlink::Result<()>;
-    fn stop_serving(&self, call: &mut Call_StopServing) -> varlink::Result<()>;
     fn call_upgraded(
         &self,
         _call: &mut varlink::Call,
@@ -189,8 +193,11 @@ pub trait VarlinkInterface {
 }
 pub trait VarlinkClientInterface {
     fn lookup(&mut self, r#ngram: String) -> varlink::MethodCall<Lookup_Args, Lookup_Reply, Error>;
+    fn lookup_all(
+        &mut self,
+        r#ngrams: Vec<String>,
+    ) -> varlink::MethodCall<LookupAll_Args, LookupAll_Reply, Error>;
     fn ping(&mut self, r#ping: String) -> varlink::MethodCall<Ping_Args, Ping_Reply, Error>;
-    fn stop_serving(&mut self) -> varlink::MethodCall<StopServing_Args, StopServing_Reply, Error>;
 }
 #[allow(dead_code)]
 pub struct VarlinkClient {
@@ -210,18 +217,21 @@ impl VarlinkClientInterface for VarlinkClient {
             Lookup_Args { r#ngram },
         )
     }
+    fn lookup_all(
+        &mut self,
+        r#ngrams: Vec<String>,
+    ) -> varlink::MethodCall<LookupAll_Args, LookupAll_Reply, Error> {
+        varlink::MethodCall::<LookupAll_Args, LookupAll_Reply, Error>::new(
+            self.connection.clone(),
+            "org.wordtree.ngrams.LookupAll",
+            LookupAll_Args { r#ngrams },
+        )
+    }
     fn ping(&mut self, r#ping: String) -> varlink::MethodCall<Ping_Args, Ping_Reply, Error> {
         varlink::MethodCall::<Ping_Args, Ping_Reply, Error>::new(
             self.connection.clone(),
             "org.wordtree.ngrams.Ping",
             Ping_Args { r#ping },
-        )
-    }
-    fn stop_serving(&mut self) -> varlink::MethodCall<StopServing_Args, StopServing_Reply, Error> {
-        varlink::MethodCall::<StopServing_Args, StopServing_Reply, Error>::new(
-            self.connection.clone(),
-            "org.wordtree.ngrams.StopServing",
-            StopServing_Args {},
         )
     }
 }
@@ -235,7 +245,7 @@ pub fn new(inner: Box<VarlinkInterface + Send + Sync>) -> VarlinkInterfaceProxy 
 }
 impl varlink::Interface for VarlinkInterfaceProxy {
     fn get_description(&self) -> &'static str {
-        "interface org.wordtree.ngrams\n\n# Returns the same string\nmethod Ping(ping: string) -> (pong: string)\n\n# Looks up an ngram and returns its tally\nmethod Lookup(ngram: string) -> (tally: int)\n\n# Stop serving\nmethod StopServing() -> ()\n\n# Something failed\nerror NgramsError (reason: string)\n"
+        "interface org.wordtree.ngrams\n\n# Returns the same string\nmethod Ping(ping: string) -> (pong: string)\n\n# Looks up an ngram and returns its tally\nmethod Lookup(ngram: string) -> (tally: int)\n\n# Looks up a set of ngrams and returns their tallies\nmethod LookupAll(ngrams: []string) -> (tallies: []int)\n\n# Something failed\nerror NgramsError (reason: string)\n"
     }
     fn get_name(&self) -> &'static str {
         "org.wordtree.ngrams"
@@ -267,6 +277,24 @@ impl varlink::Interface for VarlinkInterfaceProxy {
                     call.reply_invalid_parameter("parameters".into())
                 }
             }
+            "org.wordtree.ngrams.LookupAll" => {
+                if let Some(args) = req.parameters.clone() {
+                    let args: LookupAll_Args = match serde_json::from_value(args) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            let es = format!("{}", e);
+                            let _ = call.reply_invalid_parameter(es.clone());
+                            return Err(
+                                varlink::context!(varlink::ErrorKind::SerdeJsonDe(es)).into()
+                            );
+                        }
+                    };
+                    self.inner
+                        .lookup_all(call as &mut Call_LookupAll, args.r#ngrams)
+                } else {
+                    call.reply_invalid_parameter("parameters".into())
+                }
+            }
             "org.wordtree.ngrams.Ping" => {
                 if let Some(args) = req.parameters.clone() {
                     let args: Ping_Args = match serde_json::from_value(args) {
@@ -283,9 +311,6 @@ impl varlink::Interface for VarlinkInterfaceProxy {
                 } else {
                     call.reply_invalid_parameter("parameters".into())
                 }
-            }
-            "org.wordtree.ngrams.StopServing" => {
-                self.inner.stop_serving(call as &mut Call_StopServing)
             }
             m => call.reply_method_not_found(String::from(m)),
         }

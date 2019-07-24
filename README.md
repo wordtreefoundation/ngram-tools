@@ -1,14 +1,12 @@
-# ngram tools
+# The `ngrams` tool
 
 Fast rust-based command-line tools for processing text files, extracting ngrams, and making a statistical baseline (rough "language model").
 
+- command-line tool for Windows, Linux, Mac OS
 - normalizes ascii text (lowercases; removes non-alphabetical text)
 - takes windowed word slices as n-grams
 - tallies the occurrences of n-grams
-
-TODO:
-
-- client/server architecture for fast look-up of in-memory n-gram tallies
+- optional client/server architecture for fast look-up of in-memory n-gram tallies
 
 ## Installing
 
@@ -66,4 +64,25 @@ $ ./ngrams -t -sn bom.4grams.tallied
 ...
 ```
 
-This capability is particularly useful if you've crated a large aggregate file (i.e. baseline) that is the result of processing many files.
+This capability is particularly useful if you've created a large aggregate file (i.e. baseline) that is the result of processing many files.
+
+## Client / Server
+
+For advanced usage, you can also set `ngrams` up as a server, storing a large amount of data in-memory. This significantly speeds things up if you have a large baseline that you need to compare many books with.
+
+Setting up the server looks like this:
+
+```
+$ ./ngrams -t baseline.4grams.tallied
+Server mode enabled (unix:/tmp/ngramd.sock)
+  -> serving 17417138 ngrams
+```
+
+Now, you can take an ascii file (i.e. an English book, in text format) and score it using the baseline:
+
+```
+$ ./ngrams --client -n4 book.txt
+Client mode enabled (unix:/tmp/ngramd.sock)
+  -> requesting ngrams
+Score: 3.182188199
+```

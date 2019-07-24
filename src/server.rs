@@ -11,26 +11,27 @@ struct WordtreeNgrams {
 
 impl VarlinkInterface for WordtreeNgrams {
     fn ping(&self, call: &mut Call_Ping, ping: String) -> varlink::Result<()> {
-        eprintln!("Ping received.");
+        println!("Ping received.");
         call.reply(ping)
     }
 
     fn lookup(&self, call: &mut Call_Lookup, ngram: String) -> varlink::Result<()> {
-        // eprintln!("Lookup called.");
         let tally = self.tally.read().unwrap();
-        call.reply(match tally.get(&ngram) {
+        let count = match tally.get(&ngram) {
             Some(value) => *value,
             None => 0
-        })
+        };
+        println!("Lookup called ({}): responding with {}.", ngram, count);
+        call.reply(count)
     }
 
     fn lookup_all(&self, call: &mut Call_LookupAll, ngrams: Vec<String>) -> varlink::Result<()> {
-        // eprintln!("Lookup called.");
         let tally = self.tally.read().unwrap();
-        let values = ngrams.iter().map(|ngram| match tally.get(ngram) {
+        let values: Vec<i64> = ngrams.iter().map(|ngram| match tally.get(ngram) {
             Some(value) => *value,
             None => 0
         }).collect();
+        println!("LookupAll called: responding with {} tallies.", values.len());
         call.reply(values)
     }
 }

@@ -93,15 +93,15 @@ fn main() -> Result<(), io::Error> {
     if opts.server && opts.client {
         return error("Error: Can't be both a server and a client".to_string());
     } else if opts.server {
-        eprintln!("Server mode enabled ({})", addr);
+        println!("Server mode enabled ({})", addr);
     } else if opts.client {
-        eprintln!("Client mode enabled ({})", addr);
+        println!("Client mode enabled ({})", addr);
     }
 
     let mut buffer: Vec<u8> = Vec::new();
     let mut tally: common::Tally = HashMap::new();
     if opts.files.len() == 0 {
-        eprintln!("Waiting for STDIN...");
+        println!("Waiting for STDIN...");
         // Read from STDIN
         io::stdin().read_to_end(&mut buffer)?;
         if opts.tallied_input { 

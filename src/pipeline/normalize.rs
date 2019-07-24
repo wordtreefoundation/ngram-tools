@@ -30,7 +30,7 @@ pub fn normalize_ascii(text: &Vec<u8>) -> Vec<u8> {
             b'A'...b'Z' => CharType::Letter(*this_char + 32),
             b'a'...b'z' => CharType::Letter(*this_char),
             b' ' | b'\t' | b'\n' | b'"' | b'(' | b')' => CharType::WordSep,
-            b'!' | b'?' | b'.' => CharType::SentenceSep,
+            b'!' | b'?' | b'.' | b';' | b':' => CharType::SentenceSep,
             b'-' => CharType::Join,
             _ => CharType::Skip,
         };

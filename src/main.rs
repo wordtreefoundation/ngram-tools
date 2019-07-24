@@ -1,15 +1,13 @@
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate gumdrop;
-
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 
 use gumdrop::Options;
 
 use std::fs::File;
-
+use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::io;
 use std::io::ErrorKind;
@@ -19,6 +17,7 @@ mod pipeline;
 mod server;
 mod client;
 mod common;
+mod org_wordtree_ngrams;
 
 #[derive(Debug, Options)]
 struct GramsOptions {
@@ -72,7 +71,7 @@ fn error(msg: String) -> Result<(), io::Error> {
 
 fn main() -> Result<(), io::Error> {
     let opts: GramsOptions = GramsOptions::parse_args_default_or_exit();
-    let socket = "/tmp/ngramd.sock".to_string();
+    let addr = "unix:/tmp/ngramd.sock".to_string();
 
     let number: usize = match opts.number {
         Some(n) => n as usize,
@@ -94,14 +93,15 @@ fn main() -> Result<(), io::Error> {
     if opts.server && opts.client {
         return error("Error: Can't be both a server and a client".to_string());
     } else if opts.server {
-        eprintln!("Starting server... ({})", socket);
+        eprintln!("Server mode enabled ({})", addr);
     } else if opts.client {
-        eprintln!("Connecting to server...({})", socket);
+        eprintln!("Client mode enabled ({})", addr);
     }
 
     let mut buffer: Vec<u8> = Vec::new();
-    let mut tally: HashMap<String, u32> = HashMap::new();
+    let mut tally: common::Tally = HashMap::new();
     if opts.files.len() == 0 {
+        eprintln!("Waiting for STDIN...");
         // Read from STDIN
         io::stdin().read_to_end(&mut buffer)?;
         if opts.tallied_input { 
@@ -125,10 +125,10 @@ fn main() -> Result<(), io::Error> {
 
     if opts.server {
         eprintln!("  -> serving {} ngrams", tally.len());
-        server::server(socket, &tally);
+        server::run_server(&addr, Arc::new(RwLock::new(tally))).expect("Unable to run server");
     } else if opts.client {
         eprintln!("  -> requesting ngrams");
-        client::client(socket, &tally);
+        client::run_client(&addr, Arc::new(RwLock::new(tally))).expect("Unable to run client");
     } else {
         pipeline::print_tally(&tally, &sort)?;
     }

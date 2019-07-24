@@ -1,16 +1,8 @@
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Request {
-    Get(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Response {
-    None,
-    Value(u32),
-}
+use std::collections::HashMap;
 
 pub enum Sort {
     Alphabetic,
     Numeric,
 }
+
+pub type Tally = HashMap<String, i64>; 

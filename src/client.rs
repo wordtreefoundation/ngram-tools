@@ -1,37 +1,27 @@
-use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
-extern crate tokio;
-use tokio::prelude::*;
+use varlink::{Connection};
+use super::org_wordtree_ngrams;
+use super::org_wordtree_ngrams::{VarlinkClientInterface};
+use super::common::{Tally};
 
-extern crate tokio_uds;
+type Result<T> = std::result::Result<T, Box<std::error::Error>>;
 
-extern crate daemon_engine;
-use daemon_engine::{DaemonError, JsonCodec, UnixConnection};
+pub fn run_client(addr: &str, tally: Arc<RwLock<Tally>>) -> Result<()> {
+    let conn = Connection::with_address(&addr).unwrap();
+    let mut iface = org_wordtree_ngrams::VarlinkClient::new(conn);
 
-use super::common::{Request, Response};
+    let mut score: f64 = 0.0;
 
-pub fn client(addr: String, tally: &HashMap<String, u32>) {
-    // Create client connector
-    let codec = JsonCodec::new();
-    let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr, codec);
-    let (tx, rx) = client.split();
+    let tally = tally.read().unwrap();
+    for (key, value) in tally.iter() {
+        let reply = iface.lookup(key.into()).call()?;
+        if reply.tally > 0 {
+            score += (*value as f64) / (reply.tally as f64);
+        }
+        // eprintln!("{}: {:?} of {}", key, value, reply.tally);
+    }
+    println!("Score: {:.*}", 9, score);
 
-    // match value {
-    //     Some(value) => {
-    //         println!("Set key: '{}'", key);
-    //         tx.send(Request::Set(key, value.to_string()))
-    //     }
-    //     None => {
-    //         println!("Get key: '{}'", key);
-    //         tx.send(Request::Get(key))
-    //     }
-    // }.wait()
-    // .unwrap();
-    tx.send(Request::Get("came to pass that".to_string())).wait().unwrap();
-
-    rx.map(|resp| -> Result<(), DaemonError> {
-        println!("Response: {:?}", resp);
-        Ok(())
-    }).wait()
-    .next();
+    Ok(())
 }

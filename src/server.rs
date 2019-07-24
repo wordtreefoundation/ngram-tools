@@ -1,48 +1,45 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, RwLock};
 
-extern crate tokio;
-use tokio::prelude::*;
-use tokio::{spawn, run};
+use varlink::{VarlinkService};
+use super::org_wordtree_ngrams;
+use super::org_wordtree_ngrams::{VarlinkInterface, Call_Ping, Call_Lookup, Call_StopServing};
+use super::common::{Tally};
 
-extern crate daemon_engine;
-use daemon_engine::{JsonCodec, UnixServer};
+struct WordtreeNgrams {
+    tally: Arc<RwLock<Tally>>
+}
 
-use super::common::{Request, Response};
+impl VarlinkInterface for WordtreeNgrams {
+    fn ping(&self, call: &mut Call_Ping, ping: String) -> varlink::Result<()> {
+        eprintln!("Ping received.");
+        call.reply(ping)
+    }
 
-pub fn server(addr: String, tally: &'static HashMap<String, u32>) {
-    let server = future::lazy(move || {
-        let codec = JsonCodec::new();
-        let mut s = UnixServer::<JsonCodec<Response, Request>>::new(&addr, codec).unwrap();
-        let m = Mutex::new(tally);
+    fn lookup(&self, call: &mut Call_Lookup, ngram: String) -> varlink::Result<()> {
+        // eprintln!("Lookup called.");
+        let tally = self.tally.read().unwrap();
+        call.reply(match tally.get(&ngram) {
+            Some(value) => *value,
+            None => 0
+        })
+    }
 
-        let server_handle = s
-            .incoming()
-            .unwrap()
-            .for_each(move |r| {
-                println!("Request: {:?}", r.data());
-                let data = r.data();
-                match data {
-                    Request::Get(k) => match m.lock().unwrap().get(&k) {
-                        Some(v) => {
-                            println!("Requested key: '{}' value: '{}", k, v);
-                            r.send(Response::Value(*v))
-                        },
-                        None => {
-                            println!("Requested key: '{}' no value found", k);
-                            r.send(Response::None)
-                        },
-                    },
-                }.wait()
-                .unwrap();
+    fn stop_serving(&self, call: &mut Call_StopServing) -> varlink::Result<()> {
+        call.reply()?;
+        Err(varlink::ErrorKind::ConnectionClosed.into())
+    }
+}
 
-                Ok(())
-            }).map_err(|_e| ());
-        spawn(server_handle);
-        Ok(())
-    });
-
-    run(server);
-
-    println!("Done!");
+pub fn run_server(address: &str, tally: Arc<RwLock<Tally>>) -> varlink::Result<()> {
+    let wn = WordtreeNgrams { tally };
+    let myinterface = org_wordtree_ngrams::new(Box::new(wn));
+    let service = VarlinkService::new(
+        "org.wordtree",
+        "ngrams",
+        "0.1",
+        "http://wordtree.org",
+        vec![Box::new(myinterface)],
+    );
+    varlink::listen(service, &address, 1, 10, 0)?;
+    Ok(())
 }

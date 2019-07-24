@@ -7,11 +7,15 @@ license = "MIT"
 edition = "2018"
 
 [dependencies]
-daemon-engine = "0.6"
 gumdrop = "0.6"
+# Need grep-cli for its fast, block-based stdout (as opposed to buffered line-based)
 grep-cli = "0.1"
+# And termcolor is required by grep-cli
+termcolor = "*"
 serde = "1.0"
 serde_derive = "1.0"
-termcolor = "*"
-tokio = "*"
-tokio-uds = "*"
+serde_json = "1.0"
+varlink = "8.0"
+
+[build-dependencies]
+varlink_generator = "8.0"

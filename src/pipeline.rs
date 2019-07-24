@@ -1,6 +1,5 @@
 use std::io;
 use std::io::Write;
-use std::collections::HashMap;
 use std::str;
 
 // Use stdout from grep_cli because io::stdout() is slower (due to forced line buffering)
@@ -8,7 +7,7 @@ extern crate grep_cli;
 extern crate termcolor;
 
 mod normalize;
-use super::common::{Sort};
+use super::common::{Sort, Tally};
 
 fn sliding_window<F>(text: &Vec<u8>, number_words: usize, mut action: F) -> Result<(), io::Error>
 where
@@ -47,7 +46,7 @@ fn print_ngram(stdout: &mut grep_cli::StandardStream, ngram: &[&[u8]]) -> Result
 pub fn text_pipeline(
     text: &Vec<u8>,
     window_size: usize,
-    tally: &mut HashMap<String, u32>,
+    tally: &mut Tally,
     normalized_only: bool,
     windowed_only: bool,
 ) -> Result<(), io::Error> {
@@ -95,7 +94,7 @@ fn eprint_utf8_fallback(text: &[u8]) {
 pub fn read_tallied_input(
     text: &Vec<u8>,
     window_size: usize,
-    tally: &mut HashMap<String, u32>) -> Result<(), io::Error> {
+    tally: &mut Tally) -> Result<(), io::Error> {
 
     for line in text.split(|c| c == &b'\n') {
         let pair: Vec<&[u8]> = line.split(|c| c == &b'\t').collect();
@@ -107,7 +106,7 @@ pub fn read_tallied_input(
                             match value.trim().parse::<u32>() {
                                 Ok(v) => {
                                     let count = tally.entry(key.to_string()).or_insert(0);
-                                    *count += v;
+                                    *count += v as i64;
                                 }
                                 Err(_e) => eprintln!("failed to parse tally for key {}: {}", key.to_string(), value.to_string())
                             }
@@ -126,10 +125,10 @@ pub fn read_tallied_input(
     Ok(())
 }
 
-pub fn print_tally(tally: &HashMap<String, u32>, sort: &Option<Sort>) -> Result<(), io::Error> {
+pub fn print_tally(tally: &Tally, sort: &Option<Sort>) -> Result<(), io::Error> {
     let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
 
-    let mut pairs: Vec<(&String, &u32)>;
+    let mut pairs: Vec<(&String, &i64)>;
     match sort {
         Some(sort_order) => {
             pairs = tally.iter().collect();

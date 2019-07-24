@@ -1,0 +1,13 @@
+interface org.wordtree.ngrams
+
+# Returns the same string
+method Ping(ping: string) -> (pong: string)
+
+# Looks up an ngram and returns its tally
+method Lookup(ngram: string) -> (tally: int)
+
+# Stop serving
+method StopServing() -> ()
+
+# Something failed
+error NgramsError (reason: string)

@@ -1,9 +1,9 @@
 # The `ngrams` tool
 
-Fast rust-based command-line tools for processing text files, extracting ngrams, and making a statistical baseline (rough "language model").
+Fast rust-based command-line tool for processing text files, extracting ngrams, and making a statistical baseline (rough "language model").
 
-- command-line tool for Windows, Linux, Mac OS
-- normalizes ascii text (lowercases; removes non-alphabetical text)
+- command-line tool (`ngrams`) for Windows, Linux, Mac OS
+- normalizes ascii text (lowercases; removes non-alphabetical text; recognizes word and sentence boundaries)
 - takes windowed word slices as n-grams
 - tallies the occurrences of n-grams
 - optional client/server architecture for fast look-up of in-memory n-gram tallies

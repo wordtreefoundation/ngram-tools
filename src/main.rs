@@ -43,10 +43,10 @@ struct GramsOptions {
     client: bool,
 
     #[options(no_short, help = "print normalized ascii and exit")]
-    normalized: bool,
+    normalize: bool,
 
     #[options(no_short, help = "print sliding window of ngrams and exit")]
-    windowed: bool,
+    window: bool,
 }
 
 impl Default for GramsOptions {
@@ -59,8 +59,8 @@ impl Default for GramsOptions {
             tallied_input: false,
             server: false,
             client: false,
-            normalized: false,
-            windowed: false,
+            normalize: false,
+            window: false,
         }
     }
 }
@@ -107,7 +107,7 @@ fn main() -> Result<(), io::Error> {
         if opts.tallied_input { 
             pipeline::read_tallied_input(&buffer, number, &mut tally)?;
         } else {
-            pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+            pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalize, opts.window)?;
         }
     } else {
         // Read from files
@@ -118,7 +118,7 @@ fn main() -> Result<(), io::Error> {
             if opts.tallied_input { 
                 pipeline::read_tallied_input(&buffer, number, &mut tally)?;
             } else {
-                pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalized, opts.windowed)?;
+                pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalize, opts.window)?;
             }
         }
     }

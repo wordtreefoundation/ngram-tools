@@ -13,7 +13,7 @@ fn sliding_window<F>(text: &Vec<u8>, number_words: usize, mut action: F) -> Resu
 where
     F: FnMut(&[&[u8]]) -> Result<(), io::Error>,
 {
-    for sentence in text.split(|c| c == &b'.') {
+    for sentence in text.split(|c| c == &b'\n') {
         if sentence.len() > 0 {
             let words: Vec<&[u8]> = sentence.split(|c| c == &b' ').collect();
             for ngram in words.windows(number_words) {

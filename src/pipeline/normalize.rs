@@ -60,7 +60,7 @@ pub fn normalize_ascii(text: &Vec<u8>) -> Vec<u8> {
             }
             (CharType::SentenceSep, CharType::Letter(_)) => {
                 t1 = t2;
-                write_buffer.push(b'.');
+                write_buffer.push(b'\n');
             }
             (CharType::Join, CharType::Letter(_)) => {
                 t1 = t2;
@@ -71,7 +71,7 @@ pub fn normalize_ascii(text: &Vec<u8>) -> Vec<u8> {
 
     match t1 {
         CharType::Letter(a) => write_buffer.push(a),
-        CharType::SentenceSep => write_buffer.push(b'.'),
+        CharType::SentenceSep => write_buffer.push(b'\n'),
         _ => (),
     }
 

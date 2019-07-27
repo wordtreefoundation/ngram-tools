@@ -23,7 +23,7 @@ impl fmt::Debug for CharType {
     }
 }
 
-pub fn normalize_ascii(text: &Vec<u8>) -> Vec<u8> {
+pub fn normalize_ascii(text: &Vec<u8>, keep_commas: bool) -> Vec<u8> {
     let mut write_buffer = Vec::with_capacity(text.len());
     let mut t1: CharType = CharType::Skip;
     let mut t2: CharType;
@@ -63,9 +63,11 @@ pub fn normalize_ascii(text: &Vec<u8>) -> Vec<u8> {
             }
             (CharType::PhraseSep, CharType::Letter(_)) => {
                 t1 = t2;
-                write_buffer.push(b' ');
-                write_buffer.push(b',');
-                write_buffer.push(b' ');
+                if keep_commas {
+                    write_buffer.push(b' ');
+                    write_buffer.push(b',');
+                    write_buffer.push(b' ');
+                }
             }
             (CharType::PhraseSep, CharType::SentenceSep) => {
                 t1 = t2;

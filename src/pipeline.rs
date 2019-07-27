@@ -49,10 +49,11 @@ pub fn text_pipeline(
     tally: &mut Tally,
     normalized_only: bool,
     windowed_only: bool,
+    keep_commas: bool,
 ) -> Result<(), io::Error> {
     let mut stdout = grep_cli::stdout(termcolor::ColorChoice::Never);
 
-    let result = normalize::normalize_ascii(&text);
+    let result = normalize::normalize_ascii(&text, keep_commas);
 
     if normalized_only {
         stdout.write(&result)?;

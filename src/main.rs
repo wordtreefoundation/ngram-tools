@@ -45,6 +45,9 @@ struct GramsOptions {
     #[options(no_short, help = "print normalized ascii and exit")]
     normalize: bool,
 
+    #[options(no_short, help = "keep commas in normalize step")]
+    keep_commas: bool,
+
     #[options(no_short, help = "print sliding window of ngrams and exit")]
     window: bool,
 }
@@ -60,6 +63,7 @@ impl Default for GramsOptions {
             server: false,
             client: false,
             normalize: false,
+            keep_commas: false,
             window: false,
         }
     }
@@ -107,7 +111,7 @@ fn main() -> Result<(), io::Error> {
         if opts.tallied_input { 
             pipeline::read_tallied_input(&buffer, number, &mut tally)?;
         } else {
-            pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalize, opts.window)?;
+            pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalize, opts.window, opts.keep_commas)?;
         }
     } else {
         // Read from files
@@ -118,7 +122,7 @@ fn main() -> Result<(), io::Error> {
             if opts.tallied_input { 
                 pipeline::read_tallied_input(&buffer, number, &mut tally)?;
             } else {
-                pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalize, opts.window)?;
+                pipeline::text_pipeline(&buffer, number, &mut tally, opts.normalize, opts.window, opts.keep_commas)?;
             }
         }
     }

@@ -46,6 +46,16 @@ pub fn run_server(address: &str, tally: Arc<RwLock<Tally>>) -> varlink::Result<(
         "http://wordtree.org",
         vec![Box::new(myinterface)],
     );
-    varlink::listen(service, &address, 1, 10, 0)?;
+    varlink::listen(
+        service,
+        &address,
+        &varlink::ListenConfig {
+            initial_worker_threads: 1,
+            max_worker_threads: 10,
+            idle_timeout: 0,
+            ..Default::default()
+        },
+    )?;
+
     Ok(())
 }
